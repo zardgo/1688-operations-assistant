@@ -209,6 +209,8 @@ export type RuleVersion = {
   appliesToGoalIds: V2GoalId[];
 };
 
+export type RuleVersionDraftInput = Pick<RuleVersion, "name" | "publishedAt" | "sourceUrl" | "scope" | "appliesToGoalIds">;
+
 export type V2PathStep = {
   id: string;
   title: string;
@@ -883,7 +885,11 @@ const v3GoalLayers: V3GoalLayer[] = [
   }
 ];
 
-export function buildV2GoalDashboard(goalId: V2GoalId, readings: V2MetricReadingInput[]): V2GoalDashboard {
+export function buildV2GoalDashboard(
+  goalId: V2GoalId,
+  readings: V2MetricReadingInput[],
+  rules: RuleVersion[] = ruleVersions
+): V2GoalDashboard {
   const snapshots = readings
     .map((reading) => {
       const definition = getV2MetricDefinition(reading.id);
@@ -938,12 +944,65 @@ export function buildV2GoalDashboard(goalId: V2GoalId, readings: V2MetricReading
         : `当前有 ${gaps.length} 个目标缺口，先处理 ${gaps[0].metricLabel}。`,
     readings: snapshots,
     gaps,
-    ruleVersions: getRuleVersionsForGoal(goalId)
+    ruleVersions: getRuleVersionsForGoal(goalId, rules)
   };
 }
 
-export function getRuleVersionsForGoal(goalId: V2GoalId): RuleVersion[] {
-  return ruleVersions.filter((rule) => rule.appliesToGoalIds.includes(goalId));
+export function getDefaultRuleVersions(): RuleVersion[] {
+  return ruleVersions.map((rule) => ({ ...rule, appliesToGoalIds: [...rule.appliesToGoalIds] }));
+}
+
+export function getRuleVersionsForGoal(goalId: V2GoalId, rules: RuleVersion[] = ruleVersions): RuleVersion[] {
+  return rules.filter((rule) => rule.appliesToGoalIds.includes(goalId));
+}
+
+export function getConfirmedRuleVersionsForGoal(goalId: V2GoalId, rules: RuleVersion[] = ruleVersions): RuleVersion[] {
+  return getRuleVersionsForGoal(goalId, rules).filter((rule) => rule.manuallyConfirmed && rule.status === "active");
+}
+
+export function createDraftRuleVersion(input: RuleVersionDraftInput): RuleVersion {
+  return {
+    ...input,
+    id: createRuleVersionId(input),
+    status: "draft",
+    manuallyConfirmed: false,
+    confirmedBy: null,
+    confirmedAt: null,
+    appliesToGoalIds: [...input.appliesToGoalIds]
+  };
+}
+
+export function confirmRuleVersion(
+  rules: RuleVersion[],
+  ruleId: string,
+  confirmedBy: string,
+  confirmedAt: string
+): RuleVersion[] {
+  return rules.map((rule) =>
+    rule.id === ruleId
+      ? {
+          ...rule,
+          status: "active",
+          manuallyConfirmed: true,
+          confirmedBy,
+          confirmedAt
+        }
+      : rule
+  );
+}
+
+export function bindRuleVersionToGoal(rules: RuleVersion[], ruleId: string, goalId: V2GoalId): RuleVersion[] {
+  return rules.map((rule) =>
+    rule.id === ruleId && !rule.appliesToGoalIds.includes(goalId)
+      ? { ...rule, appliesToGoalIds: [...rule.appliesToGoalIds, goalId] }
+      : rule
+  );
+}
+
+function createRuleVersionId(input: RuleVersionDraftInput): string {
+  const goalId = input.appliesToGoalIds[0] ?? "official";
+  const normalizedGoal = goalId.replaceAll("_", "-");
+  return `${normalizedGoal}-${input.publishedAt}`;
 }
 
 export function buildV3OperatingReview(input: V3OperatingInput): V3OperatingReview {

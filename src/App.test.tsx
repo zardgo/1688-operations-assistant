@@ -50,6 +50,35 @@ describe("1688 operations assistant UI", () => {
     expect(screen.getAllByText("未人工确认").length).toBeGreaterThan(0);
   });
 
+  it("lets a manager add a draft rule and confirm rules before employees can use them", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "规则版本" }));
+
+    expect(screen.getByRole("heading", { name: "规则运营后台" })).toBeInTheDocument();
+    expect(screen.getByText("员工可用规则 0 条")).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("规则名称"));
+    await user.type(screen.getByLabelText("规则名称"), "找工厂铜牌 6 月规则");
+    await user.clear(screen.getByLabelText("发布日期"));
+    await user.type(screen.getByLabelText("发布日期"), "2026-06-01");
+    await user.clear(screen.getByLabelText("官方链接"));
+    await user.type(screen.getByLabelText("官方链接"), "https://factory.1688.com/rules/factory-level-june");
+    await user.clear(screen.getByLabelText("适用范围"));
+    await user.type(screen.getByLabelText("适用范围"), "保温杯 / 找工厂 / 铜牌 6 月规则");
+    await user.click(screen.getByRole("button", { name: "新增规则草案" }));
+
+    expect(screen.getByText("找工厂铜牌 6 月规则")).toBeInTheDocument();
+    expect(screen.getAllByText("未人工确认").length).toBeGreaterThan(0);
+    expect(screen.getByText("员工可用规则 0 条")).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: "确认规则" })[0]);
+
+    expect(screen.getByText("员工可用规则 1 条")).toBeInTheDocument();
+    expect(screen.getByText("确认人：Leon")).toBeInTheDocument();
+  });
+
   it("backtests the first V2 action into a validated SOP", async () => {
     const user = userEvent.setup();
     render(<App />);

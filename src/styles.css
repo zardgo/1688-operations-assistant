@@ -732,7 +732,8 @@ h2 {
 }
 
 .rule-list,
-.rule-chip-list {
+.rule-chip-list,
+.rule-form {
   display: grid;
   gap: 10px;
 }
@@ -795,6 +796,75 @@ h2 {
 .rule-card a {
   color: var(--blue);
   font-weight: 900;
+}
+
+.rule-confirmation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.rule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.rule-actions button,
+.rule-form button {
+  min-height: 40px;
+  padding: 0 12px;
+  color: #fffff8;
+  font-weight: 900;
+  background: var(--dark);
+  border: 1px solid var(--dark);
+}
+
+.rule-basis {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 14px;
+  color: #fff8ec;
+  background: var(--green);
+  border: 1px solid var(--green);
+}
+
+.rule-basis strong {
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.rule-basis p {
+  margin-bottom: 0;
+  line-height: 1.55;
+}
+
+.rule-form {
+  margin-bottom: 12px;
+}
+
+.rule-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.rule-form span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.rule-form input {
+  min-width: 0;
+  height: 42px;
+  padding: 0 10px;
+  color: var(--ink);
+  font: inherit;
+  background: #fffff8;
+  border: 1px solid var(--line);
 }
 
 .task-list {

@@ -21,6 +21,11 @@ import {
   buildV3OperatingReview,
   buildV4DailyOperatingReview,
   buildV5OperatingLoop,
+  bindRuleVersionToGoal,
+  confirmRuleVersion,
+  createDraftRuleVersion,
+  getConfirmedRuleVersionsForGoal,
+  getDefaultRuleVersions,
   type V2Action,
   type V2BacktestResult,
   type V2GoalId,
@@ -29,7 +34,7 @@ import {
   type V3CapabilitySnapshot,
   type V3SkuFact,
   type V4DailyFactInput,
-type V5ChecklistBacktestResult
+  type V5ChecklistBacktestResult
 } from "./lib/operations";
 import "./styles.css";
 
@@ -263,6 +268,13 @@ const initialValues: Record<V2MetricId, number> = {
   weekly_sop_count: 0
 };
 
+const initialRuleForm = {
+  name: "官方规则草案",
+  publishedAt: "2026-06-01",
+  sourceUrl: "https://factory.1688.com/rules/factory-level-june",
+  scope: "保温杯 / 找工厂 / 新规则待确认"
+};
+
 const sampleSkuFacts: V3SkuFact[] = [
   {
     name: "316 商务礼品杯",
@@ -316,6 +328,8 @@ export default function App() {
   const [checkedChecklistIds, setCheckedChecklistIds] = useState<string[]>([]);
   const [v5BacktestAfter, setV5BacktestAfter] = useState("6.1");
   const [v5BacktestResult, setV5BacktestResult] = useState<V5ChecklistBacktestResult | null>(null);
+  const [ruleVersions, setRuleVersions] = useState(() => getDefaultRuleVersions());
+  const [ruleForm, setRuleForm] = useState(initialRuleForm);
 
   const readings = useMemo<V2MetricReadingInput[]>(
     () =>
@@ -326,8 +340,12 @@ export default function App() {
       })),
     [values]
   );
-  const dashboard = useMemo(() => buildV2GoalDashboard(goalId, readings), [goalId, readings]);
+  const dashboard = useMemo(() => buildV2GoalDashboard(goalId, readings, ruleVersions), [goalId, readings, ruleVersions]);
   const actionPlan = useMemo(() => buildV2ActionPlan(dashboard), [dashboard]);
+  const confirmedRules = useMemo(
+    () => getConfirmedRuleVersionsForGoal(goalId, ruleVersions),
+    [goalId, ruleVersions]
+  );
   const v3Review = useMemo(
     () =>
       buildV3OperatingReview({
@@ -378,6 +396,26 @@ export default function App() {
     const before = v5Loop.primaryBottleneck.current;
     const after = Number(v5BacktestAfter) / 100;
     setV5BacktestResult(backtestV5ChecklistAction(firstChecklistAction, before, after));
+  }
+
+  function updateRuleForm(field: keyof typeof initialRuleForm, value: string) {
+    setRuleForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function addDraftRule() {
+    const draft = createDraftRuleVersion({
+      ...ruleForm,
+      appliesToGoalIds: [goalId]
+    });
+    setRuleVersions((current) => current.filter((rule) => rule.id !== draft.id).concat(draft));
+  }
+
+  function confirmRule(ruleId: string) {
+    setRuleVersions((current) => confirmRuleVersion(current, ruleId, "Leon", "2026-05-23"));
+  }
+
+  function bindRuleToCurrentGoal(ruleId: string) {
+    setRuleVersions((current) => bindRuleVersionToGoal(current, ruleId, goalId));
   }
 
   return (
@@ -693,7 +731,7 @@ export default function App() {
               <h2>规则版本库</h2>
             </div>
             <div className="rule-list">
-              {dashboard.ruleVersions.map((rule) => (
+              {ruleVersions.map((rule) => (
                 <article className="rule-card" key={rule.id}>
                   <div className="rule-card-head">
                     <span className={rule.manuallyConfirmed ? "confirmed" : "unconfirmed"}>
@@ -714,20 +752,86 @@ export default function App() {
                     </dd>
                     <dt>规则状态</dt>
                     <dd>{formatRuleStatus(rule.status)}</dd>
+                    <dt>确认信息</dt>
+                    <dd>
+                      {rule.manuallyConfirmed && rule.confirmedBy ? (
+                        <span className="rule-confirmation">
+                          <span>确认人：{rule.confirmedBy}</span>
+                          <span>{rule.confirmedAt}</span>
+                        </span>
+                      ) : (
+                        "待负责人核验"
+                      )}
+                    </dd>
+                    <dt>绑定目标</dt>
+                    <dd>{rule.appliesToGoalIds.map((id) => goalLabel(id)).join("、")}</dd>
                   </dl>
+                  <div className="rule-actions">
+                    {!rule.manuallyConfirmed ? (
+                      <button type="button" onClick={() => confirmRule(rule.id)}>
+                        确认规则
+                      </button>
+                    ) : null}
+                    {!rule.appliesToGoalIds.includes(goalId) ? (
+                      <button type="button" onClick={() => bindRuleToCurrentGoal(rule.id)}>
+                        绑定当前目标
+                      </button>
+                    ) : null}
+                  </div>
                 </article>
               ))}
             </div>
           </div>
-          <aside className="panel method-panel">
+          <aside className="panel method-panel rule-admin-panel">
             <div className="section-title">
               <Target aria-hidden="true" />
-              <h2>适用规则版本</h2>
+              <h2>规则运营后台</h2>
+            </div>
+            <div className="rule-basis">
+              <strong>员工可用规则 {confirmedRules.length} 条</strong>
+              <p>{confirmedRules.length === 0 ? "当前目标还没有人工确认规则，员工动作只按草案提示执行。" : "已确认规则可以作为当前目标的员工执行依据。"}</p>
+            </div>
+            <div className="rule-form">
+              <label>
+                <span>规则名称</span>
+                <input
+                  aria-label="规则名称"
+                  value={ruleForm.name}
+                  onChange={(event) => updateRuleForm("name", event.target.value)}
+                />
+              </label>
+              <label>
+                <span>发布日期</span>
+                <input
+                  aria-label="发布日期"
+                  value={ruleForm.publishedAt}
+                  onChange={(event) => updateRuleForm("publishedAt", event.target.value)}
+                />
+              </label>
+              <label>
+                <span>官方链接</span>
+                <input
+                  aria-label="官方链接"
+                  value={ruleForm.sourceUrl}
+                  onChange={(event) => updateRuleForm("sourceUrl", event.target.value)}
+                />
+              </label>
+              <label>
+                <span>适用范围</span>
+                <input
+                  aria-label="适用范围"
+                  value={ruleForm.scope}
+                  onChange={(event) => updateRuleForm("scope", event.target.value)}
+                />
+              </label>
+              <button className="primary-action" type="button" onClick={addDraftRule}>
+                新增规则草案
+              </button>
             </div>
             <div className="cadence-list">
               <p><strong>当前目标</strong>{dashboard.goalLabel}</p>
-              <p><strong>确认要求</strong>未人工确认的规则只能作为草案，不能当永久政策。</p>
-              <p><strong>更新动作</strong>官方规则变更后，先新增版本，再切换目标绑定。</p>
+              <p><strong>确认要求</strong>未人工确认的规则只能作为草案，不能进入员工可用规则。</p>
+              <p><strong>更新动作</strong>官方规则变更后，先新增草案，再人工确认，最后绑定目标。</p>
             </div>
           </aside>
         </section>
@@ -1050,6 +1154,10 @@ function formatRuleStatus(status: "draft" | "active" | "superseded"): string {
   if (status === "active") return "生效";
   if (status === "superseded") return "已被替换";
   return "草案";
+}
+
+function goalLabel(goalId: V2GoalId): string {
+  return goalOptions.find((goal) => goal.id === goalId)?.label ?? goalId;
 }
 
 function formatTrendLabel(trend: "up" | "flat" | "down"): string {

@@ -7,7 +7,11 @@ import {
   buildV3OperatingReview,
   buildV2ActionPlan,
   buildV2GoalDashboard,
+  bindRuleVersionToGoal,
   buildKeywordMatrix,
+  confirmRuleVersion,
+  createDraftRuleVersion,
+  getConfirmedRuleVersionsForGoal,
   getRuleVersionsForGoal,
   createActionQueue,
   createMvpWeeklyReview,
@@ -189,6 +193,57 @@ describe("1688 operations engine", () => {
           appliesToGoalIds: expect.arrayContaining(["factory_bronze"])
         })
       ])
+    );
+  });
+
+  it("creates a draft rule version that is not usable by employees until confirmed", () => {
+    const draft = createDraftRuleVersion({
+      name: "找工厂铜牌 2026-06 更新",
+      publishedAt: "2026-06-01",
+      sourceUrl: "https://factory.1688.com/rules/factory-level-june",
+      scope: "保温杯 / 找工厂 / 铜牌 6 月规则",
+      appliesToGoalIds: ["factory_bronze"]
+    });
+
+    expect(draft).toMatchObject({
+      id: "factory-bronze-2026-06-01",
+      status: "draft",
+      manuallyConfirmed: false,
+      confirmedBy: null,
+      confirmedAt: null,
+      appliesToGoalIds: ["factory_bronze"]
+    });
+  });
+
+  it("confirms a rule version and exposes only confirmed rules as employee basis", () => {
+    const draft = createDraftRuleVersion({
+      name: "找工厂铜牌 2026-06 更新",
+      publishedAt: "2026-06-01",
+      sourceUrl: "https://factory.1688.com/rules/factory-level-june",
+      scope: "保温杯 / 找工厂 / 铜牌 6 月规则",
+      appliesToGoalIds: ["factory_bronze"]
+    });
+    const rules = getRuleVersionsForGoal("factory_bronze").concat(draft);
+
+    expect(getConfirmedRuleVersionsForGoal("factory_bronze", rules).map((rule) => rule.id)).not.toContain(draft.id);
+
+    const confirmedRules = confirmRuleVersion(rules, draft.id, "Leon", "2026-06-02");
+
+    expect(confirmedRules.find((rule) => rule.id === draft.id)).toMatchObject({
+      status: "active",
+      manuallyConfirmed: true,
+      confirmedBy: "Leon",
+      confirmedAt: "2026-06-02"
+    });
+    expect(getConfirmedRuleVersionsForGoal("factory_bronze", confirmedRules).map((rule) => rule.id)).toContain(draft.id);
+  });
+
+  it("binds a rule version to a new goal without removing existing scope", () => {
+    const [serviceRule] = getRuleVersionsForGoal("protect_service");
+    const rules = bindRuleVersionToGoal([serviceRule], serviceRule.id, "factory_bronze");
+
+    expect(rules[0].appliesToGoalIds).toEqual(
+      expect.arrayContaining(["protect_service", "factory_bronze"])
     );
   });
 
