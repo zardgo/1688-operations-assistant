@@ -142,6 +142,94 @@ export type MvpWeeklyReview = {
   sopCandidate: { title: string; sourceTaskId: string } | null;
 };
 
+export type V2GoalId = MvpGoal;
+
+export type V2Cadence = "daily" | "weekly" | "monthly";
+
+export type V2MetricId =
+  | "ww_3min_response_rate"
+  | "factory_service_response_rate_30d"
+  | "pickup_48h_rate_30d"
+  | "factory_fulfillment_rate_30d"
+  | "monthly_active_small_custom_sku_count"
+  | "custom_trade_points_30d"
+  | "contract_payment_rate"
+  | "gross_margin_rate"
+  | "quality_refund_rate"
+  | "weekly_sop_count";
+
+export type V2MetricReadingInput = {
+  id: V2MetricId;
+  value: number;
+  period: string;
+};
+
+export type V2MetricSnapshot = V2MetricReadingInput & {
+  label: string;
+  cadence: V2Cadence;
+  source: string;
+  currentLabel: string;
+  target: number | null;
+  targetLabel: string;
+};
+
+export type V2MetricGap = {
+  metricId: V2MetricId;
+  metricLabel: string;
+  priority: MvpRisk["priority"];
+  cadence: V2Cadence;
+  current: number;
+  target: number;
+  currentLabel: string;
+  targetLabel: string;
+  gapLabel: string;
+  source: string;
+  whyItMatters: string;
+};
+
+export type V2GoalDashboard = {
+  goalId: V2GoalId;
+  goalLabel: string;
+  summary: string;
+  readings: V2MetricSnapshot[];
+  gaps: V2MetricGap[];
+};
+
+export type V2PathStep = {
+  id: string;
+  title: string;
+  metricIds: V2MetricId[];
+  formula: string;
+  checkpoint: string;
+};
+
+export type V2Action = {
+  id: string;
+  title: string;
+  priority: MvpRisk["priority"];
+  targetMetricId: V2MetricId;
+  cadence: V2Cadence;
+  method: string;
+  evidence: string[];
+  reviewQuestion: string;
+  sopState: "candidate" | "validated" | "stopped";
+};
+
+export type V2ActionPlan = {
+  goalId: V2GoalId;
+  pathSteps: V2PathStep[];
+  actions: V2Action[];
+};
+
+export type V2BacktestResult = {
+  actionId: string;
+  effect: "effective" | "watch" | "ineffective";
+  sopState: V2Action["sopState"];
+  beforeLabel: string;
+  afterLabel: string;
+  summary: string;
+};
+
 type MetricRule = {
   metric: keyof WeeklyMetrics;
   label: string;
@@ -151,6 +239,238 @@ type MetricRule = {
   format: "percent" | "number" | "hours";
   advice: string;
 };
+
+type V2MetricDefinition = {
+  id: V2MetricId;
+  label: string;
+  cadence: V2Cadence;
+  source: string;
+  format: "percent" | "count" | "points";
+  direction: "min" | "max";
+  priority: MvpRisk["priority"];
+  sort: number;
+  whyItMatters: string;
+  targets: Partial<Record<V2GoalId, number>>;
+  pathTitle: string;
+  checkpoint: string;
+  actionTitle: string;
+  method: string;
+  evidence: string[];
+  reviewQuestion: string;
+};
+
+const v2GoalLabels: Record<V2GoalId, string> = {
+  protect_service: "保基础服务分",
+  factory_bronze: "冲找工厂铜牌",
+  factory_silver: "冲找工厂银牌",
+  factory_gold: "冲找工厂金牌",
+  l_growth: "提升 L 等级",
+  lighthouse_repair: "修复新灯塔短板"
+};
+
+const v2MetricDefinitions: V2MetricDefinition[] = [
+  {
+    id: "ww_3min_response_rate",
+    label: "旺旺 3 分钟响应率",
+    cadence: "daily",
+    source: "客服接待数据，统计 09:00-21:00 人工或有效 AI 回复",
+    format: "percent",
+    direction: "min",
+    priority: "P0",
+    sort: 10,
+    whyItMatters: "低于底线会伤害咨询体验，并可能触发平台接待降权风险。",
+    targets: {
+      protect_service: 0.6,
+      factory_bronze: 0.6,
+      factory_silver: 0.65,
+      factory_gold: 0.7,
+      l_growth: 0.6,
+      lighthouse_repair: 0.6
+    },
+    pathTitle: "先保 09:00-21:00 首响",
+    checkpoint: "每天收工前看当日 3 分钟响应率和未响应原因。",
+    actionTitle: "补齐 09:00-21:00 首响值班和快捷回复",
+    method: "把晚回消息按时间段、询盘类型、责任原因归类，补保温杯拿样、定制、现货、发票、交期快捷回复。",
+    evidence: ["当日旺旺 3 分钟响应率截图", "未响应原因表", "快捷回复截图"],
+    reviewQuestion: "响应慢是提醒、人手、话术，还是低质量询盘占用时间？"
+  },
+  {
+    id: "factory_service_response_rate_30d",
+    label: "找工厂服务响应率",
+    cadence: "daily",
+    source: "找工厂近 30 天服务响应数据",
+    format: "percent",
+    direction: "min",
+    priority: "P0",
+    sort: 20,
+    whyItMatters: "这是找工厂牌级门槛，响应没过线时冲牌级动作会被卡住。",
+    targets: { factory_bronze: 0.6, factory_silver: 0.65, factory_gold: 0.7 },
+    pathTitle: "把找工厂响应口径拉回牌级线",
+    checkpoint: "每天追近 30 天滚动响应率，不只看当天体感。",
+    actionTitle: "追踪找工厂近 30 天未响应咨询",
+    method: "把近 30 天未及时响应的找工厂询盘导出，分现货、定制、小单、无效询盘处理。",
+    evidence: ["近 30 天服务响应率截图", "未响应询盘清单", "次日补救结果"],
+    reviewQuestion: "哪类找工厂询盘最容易漏接？"
+  },
+  {
+    id: "monthly_active_small_custom_sku_count",
+    label: "月动销小单定制商品数",
+    cadence: "monthly",
+    source: "商品与定制成交数据",
+    format: "count",
+    direction: "min",
+    priority: "P1",
+    sort: 30,
+    whyItMatters: "保温杯冲找工厂需要稳定的小单定制入口，入口不足会拖慢积分和合约支付。",
+    targets: { factory_bronze: 3, factory_silver: 3, factory_gold: 3 },
+    pathTitle: "补足 3 个可成交的小单定制入口",
+    checkpoint: "每周看每个入口是否有询盘、报价、成交或失败原因。",
+    actionTitle: "上架或重做 3 个小单定制保温杯入口",
+    method: "优先选刻字、LOGO、礼品包装三个方向，写清 MOQ、拿样、打样周期和阶梯价。",
+    evidence: ["商品链接", "定制入口截图", "定制询盘数"],
+    reviewQuestion: "哪个入口带来真实报价和成交，而不是只带来问价？"
+  },
+  {
+    id: "custom_trade_points_30d",
+    label: "定制交易积分",
+    cadence: "daily",
+    source: "找工厂定制交易积分近 30 天数据",
+    format: "points",
+    direction: "min",
+    priority: "P1",
+    sort: 40,
+    whyItMatters: "定制交易积分是找工厂牌级升级的规模证明，但不能用亏损订单硬冲。",
+    targets: { factory_bronze: 100000, factory_silver: 800000, factory_gold: 1500000 },
+    pathTitle: "用合格毛利订单积累定制交易积分",
+    checkpoint: "每周核对积分增长是否来自毛利合格订单。",
+    actionTitle: "筛选可承接定制积分的订单线索",
+    method: "只跟进毛利达标、交期可控、确认稿清楚的定制线索，低毛利订单进入止损池。",
+    evidence: ["定制积分截图", "订单毛利表", "有效定制线索清单"],
+    reviewQuestion: "积分增长是不是牺牲毛利换来的？"
+  },
+  {
+    id: "factory_fulfillment_rate_30d",
+    label: "找工厂履约率",
+    cadence: "daily",
+    source: "找工厂近 30 天履约数据",
+    format: "percent",
+    direction: "min",
+    priority: "P1",
+    sort: 50,
+    whyItMatters: "履约率是牌级门槛，也会影响定制买家的可信判断。",
+    targets: { factory_bronze: 0.7, factory_silver: 0.75, factory_gold: 0.8 },
+    pathTitle: "把定制履约从承诺前置到订单前",
+    checkpoint: "每天检查确认稿、物料、交期和物流四个节点。",
+    actionTitle: "排查定制订单确认稿和交期风险",
+    method: "按材质、容量、颜色、印刷、包装、交期、确认稿七项检查每个定制订单。",
+    evidence: ["风险订单清单", "确认稿状态", "预计交付日期"],
+    reviewQuestion: "履约风险来自客服乱承诺、库存不准，还是供应链产能不稳？"
+  },
+  {
+    id: "contract_payment_rate",
+    label: "合约支付率",
+    cadence: "daily",
+    source: "找工厂合约支付数据",
+    format: "percent",
+    direction: "min",
+    priority: "P1",
+    sort: 60,
+    whyItMatters: "合约支付率说明定制成交规范度，影响找工厂升级。",
+    targets: { factory_bronze: 0.5, factory_silver: 0.6, factory_gold: 0.7 },
+    pathTitle: "把定制成交引导到合约支付",
+    checkpoint: "每周复盘未走合约支付的原因。",
+    actionTitle: "建立定制报价到合约支付话术",
+    method: "报价时同步说明确认稿、交期、售后和合约支付流程，减少线下口头承诺。",
+    evidence: ["合约支付率截图", "未走合约订单原因", "报价话术"],
+    reviewQuestion: "客户为什么绕开合约支付？"
+  },
+  {
+    id: "pickup_48h_rate_30d",
+    label: "近 30 天 48 小时揽收率",
+    cadence: "daily",
+    source: "物流履约数据",
+    format: "percent",
+    direction: "min",
+    priority: "P0",
+    sort: 70,
+    whyItMatters: "保温杯属于消费品，物流体验会直接影响服务分、复购和活动权益。",
+    targets: { protect_service: 0.95, lighthouse_repair: 0.95, l_growth: 0.95 },
+    pathTitle: "物流风险订单日清",
+    checkpoint: "每天 16:00 前处理 48 小时内应揽收订单。",
+    actionTitle: "完成 48 小时揽收风险订单日清",
+    method: "按缺货、待确认、物流异常、承诺错误拆分风险订单，并补当天处理记录。",
+    evidence: ["风险订单清单", "已处理订单数", "未处理原因"],
+    reviewQuestion: "揽收问题来自库存、承诺、打单，还是物流配合？"
+  },
+  {
+    id: "gross_margin_rate",
+    label: "毛利率",
+    cadence: "weekly",
+    source: "单品毛利表",
+    format: "percent",
+    direction: "min",
+    priority: "P3",
+    sort: 80,
+    whyItMatters: "增长不能越做越亏，所有冲级和提 L 动作都要守住毛利底线。",
+    targets: {
+      protect_service: 0.18,
+      factory_bronze: 0.18,
+      factory_silver: 0.18,
+      factory_gold: 0.18,
+      l_growth: 0.18,
+      lighthouse_repair: 0.18
+    },
+    pathTitle: "把增长先过毛利底线",
+    checkpoint: "每周按 SKU 和订单复核真实毛利。",
+    actionTitle: "补单品毛利表并标记低毛利订单",
+    method: "拆产品、包装、运费、样品、售后和广告成本，低毛利来源单独标记。",
+    evidence: ["单品毛利表", "低毛利订单清单", "调价或停推建议"],
+    reviewQuestion: "哪些订单是在用利润换规模？"
+  },
+  {
+    id: "quality_refund_rate",
+    label: "品质退款率",
+    cadence: "weekly",
+    source: "退款与售后原因数据",
+    format: "percent",
+    direction: "max",
+    priority: "P0",
+    sort: 90,
+    whyItMatters: "品质退款会破坏商品体验、评价、复购和新灯塔表现。",
+    targets: { protect_service: 0.02, lighthouse_repair: 0.02, l_growth: 0.02 },
+    pathTitle: "先归因品质退款再放大流量",
+    checkpoint: "每周按漏水、保温、掉漆、容量、包装、错发归因。",
+    actionTitle: "分类品质退款并处理问题 SKU",
+    method: "对问题 SKU 做停推、详情页预期修正、供应链整改或售后话术调整。",
+    evidence: ["问题 SKU 清单", "售后原因分类", "停推或整改动作"],
+    reviewQuestion: "是真品质问题，还是详情页预期管理问题？"
+  },
+  {
+    id: "weekly_sop_count",
+    label: "本周 SOP 新增数",
+    cadence: "weekly",
+    source: "周复盘记录",
+    format: "count",
+    direction: "min",
+    priority: "P3",
+    sort: 100,
+    whyItMatters: "动作不沉淀，员工下周会继续重复救火。",
+    targets: {
+      protect_service: 1,
+      factory_bronze: 1,
+      factory_silver: 1,
+      factory_gold: 1,
+      l_growth: 1,
+      lighthouse_repair: 1
+    },
+    pathTitle: "把有效动作沉淀成 SOP",
+    checkpoint: "每周只沉淀 1 条真正被数据验证过的动作。",
+    actionTitle: "从有效动作中沉淀 1 条 SOP",
+    method: "写清适用场景、操作步骤、所需截图、失败停止条件和复盘频率。",
+    evidence: ["SOP 标题", "适用场景", "操作步骤"],
+    reviewQuestion: "这条 SOP 下周换人执行还会有效吗？"
+  }
+];
 
 const rules: MetricRule[] = [
   {
@@ -236,6 +556,114 @@ const rules: MetricRule[] = [
   }
 ];
 
+export function buildV2GoalDashboard(goalId: V2GoalId, readings: V2MetricReadingInput[]): V2GoalDashboard {
+  const snapshots = readings
+    .map((reading) => {
+      const definition = getV2MetricDefinition(reading.id);
+      const target = definition.targets[goalId] ?? null;
+      return {
+        ...reading,
+        label: definition.label,
+        cadence: definition.cadence,
+        source: definition.source,
+        currentLabel: formatV2MetricValue(reading.value, definition.format),
+        target,
+        targetLabel: target === null ? "不适用" : formatV2MetricValue(target, definition.format)
+      };
+    })
+    .sort((left, right) => getV2MetricDefinition(left.id).sort - getV2MetricDefinition(right.id).sort);
+
+  const gaps = snapshots
+    .map((snapshot) => {
+      if (snapshot.target === null) return null;
+      const definition = getV2MetricDefinition(snapshot.id);
+      const isGap =
+        definition.direction === "min" ? snapshot.value < snapshot.target : snapshot.value > snapshot.target;
+      if (!isGap) return null;
+
+      return {
+        metricId: snapshot.id,
+        metricLabel: definition.label,
+        priority: definition.priority,
+        cadence: definition.cadence,
+        current: snapshot.value,
+        target: snapshot.target,
+        currentLabel: snapshot.currentLabel,
+        targetLabel: snapshot.targetLabel,
+        gapLabel: formatV2Gap(snapshot.value, snapshot.target, definition),
+        source: definition.source,
+        whyItMatters: definition.whyItMatters
+      };
+    })
+    .filter((gap): gap is V2MetricGap => gap !== null)
+    .sort(
+      (left, right) =>
+        priorityRank(right.priority) - priorityRank(left.priority) ||
+        getV2MetricDefinition(left.metricId).sort - getV2MetricDefinition(right.metricId).sort
+    );
+
+  return {
+    goalId,
+    goalLabel: v2GoalLabels[goalId],
+    summary:
+      gaps.length === 0
+        ? "当前录入数据未发现目标缺口，适合进入周复盘和 SOP 固化。"
+        : `当前有 ${gaps.length} 个目标缺口，先处理 ${gaps[0].metricLabel}。`,
+    readings: snapshots,
+    gaps
+  };
+}
+
+export function buildV2ActionPlan(dashboard: V2GoalDashboard): V2ActionPlan {
+  const gapsForAction = dashboard.gaps.slice(0, 5);
+  return {
+    goalId: dashboard.goalId,
+    pathSteps: gapsForAction.map((gap) => {
+      const definition = getV2MetricDefinition(gap.metricId);
+      return {
+        id: `path-${definition.id}`,
+        title: definition.pathTitle,
+        metricIds: [definition.id],
+        formula: `目标 ${dashboard.goalLabel} = 数据 ${definition.label}${gap.currentLabel}/${gap.targetLabel} + 路径 ${definition.pathTitle} + 证据回测`,
+        checkpoint: definition.checkpoint
+      };
+    }),
+    actions: gapsForAction.map((gap) => {
+      const definition = getV2MetricDefinition(gap.metricId);
+      return {
+        id: `action-${definition.id}`,
+        title: definition.actionTitle,
+        priority: definition.priority,
+        targetMetricId: definition.id,
+        cadence: definition.cadence,
+        method: definition.method,
+        evidence: definition.evidence,
+        reviewQuestion: definition.reviewQuestion,
+        sopState: "candidate"
+      };
+    })
+  };
+}
+
+export function backtestV2Action(action: V2Action, before: number, after: number): V2BacktestResult {
+  const definition = getV2MetricDefinition(action.targetMetricId);
+  const delta = definition.direction === "min" ? after - before : before - after;
+  const effect: V2BacktestResult["effect"] = delta >= 0.05 ? "effective" : delta > 0 ? "watch" : "ineffective";
+  const sopState: V2Action["sopState"] =
+    effect === "effective" ? "validated" : effect === "ineffective" ? "stopped" : "candidate";
+  const beforeLabel = formatV2MetricValue(before, definition.format);
+  const afterLabel = formatV2MetricValue(after, definition.format);
+
+  return {
+    actionId: action.id,
+    effect,
+    sopState,
+    beforeLabel,
+    afterLabel,
+    summary: `${definition.label} ${beforeLabel} -> ${afterLabel}，${formatV2Effect(effect)}。`
+  };
+}
+
 export function evaluateOperations(metrics: WeeklyMetrics): Evaluation {
   const gaps = rules
     .map((rule) => buildGap(rule, metrics[rule.metric]))
@@ -279,6 +707,31 @@ function formatValue(value: number, format: MetricRule["format"]): string {
   if (format === "percent") return `${Math.round(value * 100)}%`;
   if (format === "hours") return `${value} 小时/天`;
   return `${value}`;
+}
+
+function getV2MetricDefinition(id: V2MetricId): V2MetricDefinition {
+  const definition = v2MetricDefinitions.find((item) => item.id === id);
+  if (!definition) throw new Error(`Unknown V2 metric: ${id}`);
+  return definition;
+}
+
+function formatV2MetricValue(value: number, format: V2MetricDefinition["format"]): string {
+  if (format === "percent") return `${Math.round(value * 100)}%`;
+  if (format === "points") return `${Math.round(value).toLocaleString("zh-CN")}`;
+  return `${value}`;
+}
+
+function formatV2Gap(current: number, target: number, definition: V2MetricDefinition): string {
+  const rawGap = definition.direction === "min" ? target - current : current - target;
+  if (definition.format === "percent") return `差 ${Math.round(rawGap * 100)} 个百分点`;
+  if (definition.format === "points") return `差 ${Math.round(rawGap).toLocaleString("zh-CN")} 分`;
+  return `差 ${rawGap}`;
+}
+
+function formatV2Effect(effect: V2BacktestResult["effect"]): string {
+  if (effect === "effective") return "动作有效，可进入 SOP 验证";
+  if (effect === "watch") return "有改善但证据不足，继续观察";
+  return "未改善，应停止或换打法";
 }
 
 function severityRank(severity: Gap["severity"]): number {

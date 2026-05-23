@@ -4,30 +4,41 @@ import { describe, expect, it } from "vitest";
 import App from "./App";
 
 describe("1688 operations assistant UI", () => {
-  it("shows the MVP cockpit and switches seed scenarios", async () => {
+  it("shows the V2 operating loop and updates goal gaps from entered data", async () => {
     const user = userEvent.setup();
     render(<App />);
 
     expect(screen.getByRole("heading", { name: "1688 运营助手" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "今日冲刺" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "官方目标" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "周复盘 / SOP" })).toBeInTheDocument();
-    expect(screen.getByText("旺旺 3 分钟响应率")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "数据录入" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "目标差距" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "路径拆解" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "动作回测" })).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText("种子场景"), "S5");
+    const responseInput = screen.getByLabelText("旺旺 3 分钟响应率");
+    await user.clear(responseInput);
+    await user.type(responseInput, "61");
+    await user.click(screen.getByRole("button", { name: "目标差距" }));
 
-    expect(screen.getAllByText("毛利率").length).toBeGreaterThan(0);
-    expect(screen.getByText("毛利低于底线，不建议继续冲 GMV 或定制交易积分。")).toBeInTheDocument();
+    expect(screen.queryByText("旺旺 3 分钟响应率差 8 个百分点")).not.toBeInTheDocument();
+    expect(screen.getByText("找工厂服务响应率差 5 个百分点")).toBeInTheDocument();
   });
 
-  it("records task outcomes into the weekly review", async () => {
+  it("backtests the first V2 action into a validated SOP", async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getAllByRole("button", { name: "标记有效" })[0]);
-    await user.click(screen.getByRole("button", { name: "周复盘 / SOP" }));
+    await user.click(screen.getByRole("button", { name: "路径拆解" }));
 
-    expect(screen.getByText("有效任务")).toBeInTheDocument();
-    expect(screen.getAllByText(/客服响应机制/).length).toBeGreaterThan(0);
+    expect(screen.getByText("补齐 09:00-21:00 首响值班和快捷回复")).toBeInTheDocument();
+    expect(screen.getByText("当日旺旺 3 分钟响应率截图")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "动作回测" }));
+    const afterInput = screen.getByLabelText("回测后 旺旺 3 分钟响应率");
+    await user.clear(afterInput);
+    await user.type(afterInput, "62");
+    await user.click(screen.getByRole("button", { name: "记录回测" }));
+
+    expect(screen.getByText("已验证")).toBeInTheDocument();
+    expect(screen.getByText(/52% -> 62%/)).toBeInTheDocument();
   });
 });

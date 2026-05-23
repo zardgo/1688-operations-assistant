@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  backtestV2Action,
+  buildV2ActionPlan,
+  buildV2GoalDashboard,
   buildKeywordMatrix,
   createActionQueue,
   createMvpWeeklyReview,
@@ -131,5 +134,68 @@ describe("1688 operations engine", () => {
     expect(review.stopActions).toContain(diagnosis.tasks[1].title);
     expect(review.nextGoals.length).toBeLessThanOrEqual(3);
     expect(review.sopCandidate?.title).toContain("客服响应机制");
+  });
+
+  it("compares manually entered V2 readings against factory bronze targets", () => {
+    const dashboard = buildV2GoalDashboard("factory_bronze", [
+      { id: "ww_3min_response_rate", value: 0.52, period: "2026-05-23" },
+      { id: "factory_service_response_rate_30d", value: 0.55, period: "2026-05-23" },
+      { id: "factory_fulfillment_rate_30d", value: 0.68, period: "2026-05-23" },
+      { id: "monthly_active_small_custom_sku_count", value: 1, period: "2026-05" },
+      { id: "custom_trade_points_30d", value: 60000, period: "2026-05-23" },
+      { id: "contract_payment_rate", value: 0.45, period: "2026-05-23" }
+    ]);
+
+    expect(dashboard.goalLabel).toBe("冲找工厂铜牌");
+    expect(dashboard.gaps.map((gap) => gap.metricId)).toEqual([
+      "ww_3min_response_rate",
+      "factory_service_response_rate_30d",
+      "monthly_active_small_custom_sku_count",
+      "custom_trade_points_30d",
+      "factory_fulfillment_rate_30d",
+      "contract_payment_rate"
+    ]);
+    expect(dashboard.gaps[0]).toMatchObject({
+      metricLabel: "旺旺 3 分钟响应率",
+      priority: "P0",
+      cadence: "daily",
+      currentLabel: "52%",
+      targetLabel: "60%"
+    });
+  });
+
+  it("decomposes V2 gaps into formulas, path steps, and measurable actions", () => {
+    const dashboard = buildV2GoalDashboard("factory_bronze", [
+      { id: "ww_3min_response_rate", value: 0.52, period: "2026-05-23" },
+      { id: "factory_service_response_rate_30d", value: 0.55, period: "2026-05-23" },
+      { id: "monthly_active_small_custom_sku_count", value: 1, period: "2026-05" }
+    ]);
+    const actionPlan = buildV2ActionPlan(dashboard);
+
+    expect(actionPlan.pathSteps[0].formula).toContain("目标");
+    expect(actionPlan.pathSteps[0].formula).toContain("数据");
+    expect(actionPlan.pathSteps.map((step) => step.title)).toContain("先保 09:00-21:00 首响");
+    expect(actionPlan.actions[0]).toMatchObject({
+      targetMetricId: "ww_3min_response_rate",
+      cadence: "daily",
+      sopState: "candidate"
+    });
+    expect(actionPlan.actions[0].evidence).toContain("当日旺旺 3 分钟响应率截图");
+  });
+
+  it("backtests V2 actions and only promotes SOP after the target metric improves", () => {
+    const dashboard = buildV2GoalDashboard("factory_bronze", [
+      { id: "ww_3min_response_rate", value: 0.52, period: "2026-05-23" }
+    ]);
+    const [action] = buildV2ActionPlan(dashboard).actions;
+
+    const improved = backtestV2Action(action, 0.52, 0.62);
+    const weak = backtestV2Action(action, 0.52, 0.53);
+
+    expect(improved.effect).toBe("effective");
+    expect(improved.sopState).toBe("validated");
+    expect(improved.summary).toContain("52% -> 62%");
+    expect(weak.effect).toBe("watch");
+    expect(weak.sopState).toBe("candidate");
   });
 });
