@@ -230,6 +230,88 @@ export type V2BacktestResult = {
   summary: string;
 };
 
+export type V3GoalLayerId = "official" | "business" | "capability";
+
+export type V3GoalLayer = {
+  id: V3GoalLayerId;
+  label: string;
+  purpose: string;
+  goals: string[];
+};
+
+export type V3SkuFact = {
+  name: string;
+  inquiries: number;
+  validInquiryRate: number;
+  grossMarginRate: number;
+  conversionRate: number;
+  customizationRequests: number;
+  repeatOrders: number;
+  afterSalesRate: number;
+  fulfillmentRisk: "low" | "medium" | "high";
+};
+
+export type V3CapabilitySnapshot = {
+  weeklySopCount: number;
+  completedAttributionCount: number;
+  stoppedIneffectiveActions: number;
+  independentJudgmentCount: number;
+};
+
+export type V3OperatingInput = {
+  goalId: V2GoalId;
+  readings: V2MetricReadingInput[];
+  skuFacts: V3SkuFact[];
+  capability: V3CapabilitySnapshot;
+};
+
+export type V3PriorityDecision = {
+  layer: V3GoalLayerId;
+  focus: string;
+  reason: string;
+  blockedGoals: string[];
+};
+
+export type V3CauseHypothesis = {
+  symptom: string;
+  hypothesis: string;
+  evidenceToCheck: string;
+  confidence: "high" | "medium" | "low";
+};
+
+export type V3ExperimentCard = {
+  id: string;
+  targetMetricId: V2MetricId;
+  title: string;
+  hypothesis: string;
+  action: string;
+  expectedChange: string;
+  successCriteria: string;
+  stopCondition: string;
+  reviewCadence: V2Cadence;
+};
+
+export type V3SkuPortfolioItem = V3SkuFact & {
+  role: "引流款" | "利润款" | "定制款" | "复购款" | "风险款" | "淘汰款";
+  recommendation: string;
+};
+
+export type V3CapabilityReview = {
+  level: "independent" | "developing" | "needs_training";
+  summary: string;
+  nextTraining: string[];
+};
+
+export type V3OperatingReview = {
+  goalLayers: V3GoalLayer[];
+  dashboard: V2GoalDashboard;
+  priorityDecision: V3PriorityDecision;
+  causeHypotheses: V3CauseHypothesis[];
+  experimentCards: V3ExperimentCard[];
+  skuPortfolio: V3SkuPortfolioItem[];
+  capabilityReview: V3CapabilityReview;
+};
+
 type MetricRule = {
   metric: keyof WeeklyMetrics;
   label: string;
@@ -556,6 +638,27 @@ const rules: MetricRule[] = [
   }
 ];
 
+const v3GoalLayers: V3GoalLayer[] = [
+  {
+    id: "official",
+    label: "官方目标",
+    purpose: "不掉平台权益，满足找工厂、新灯塔、响应、履约等平台门槛。",
+    goals: ["找工厂牌级", "旺旺 3 分钟响应率", "48 小时揽收率", "新灯塔与 L 等级"]
+  },
+  {
+    id: "business",
+    label: "经营目标",
+    purpose: "判断客户买不买、订单赚不赚、SKU 值不值得继续投入。",
+    goals: ["毛利健康", "询盘质量", "报价转化", "SKU 结构", "客户复购"]
+  },
+  {
+    id: "capability",
+    label: "能力目标",
+    purpose: "让员工从完成任务升级为能归因、能停止、能沉淀 SOP 的运营者。",
+    goals: ["SOP 沉淀", "询盘归因", "低效动作停止", "独立判断"]
+  }
+];
+
 export function buildV2GoalDashboard(goalId: V2GoalId, readings: V2MetricReadingInput[]): V2GoalDashboard {
   const snapshots = readings
     .map((reading) => {
@@ -611,6 +714,25 @@ export function buildV2GoalDashboard(goalId: V2GoalId, readings: V2MetricReading
         : `当前有 ${gaps.length} 个目标缺口，先处理 ${gaps[0].metricLabel}。`,
     readings: snapshots,
     gaps
+  };
+}
+
+export function buildV3OperatingReview(input: V3OperatingInput): V3OperatingReview {
+  const dashboard = buildV2GoalDashboard(input.goalId, input.readings);
+  const skuPortfolio = buildV3SkuPortfolio(input.skuFacts);
+  const capabilityReview = buildV3CapabilityReview(input.capability);
+  const causeHypotheses = buildV3CauseHypotheses(dashboard, skuPortfolio, input.capability);
+  const priorityDecision = buildV3PriorityDecision(dashboard, skuPortfolio, capabilityReview);
+  const experimentCards = buildV3ExperimentCards(dashboard, causeHypotheses, priorityDecision);
+
+  return {
+    goalLayers: v3GoalLayers,
+    dashboard,
+    priorityDecision,
+    causeHypotheses,
+    experimentCards,
+    skuPortfolio,
+    capabilityReview
   };
 }
 
@@ -732,6 +854,269 @@ function formatV2Effect(effect: V2BacktestResult["effect"]): string {
   if (effect === "effective") return "动作有效，可进入 SOP 验证";
   if (effect === "watch") return "有改善但证据不足，继续观察";
   return "未改善，应停止或换打法";
+}
+
+function buildV3PriorityDecision(
+  dashboard: V2GoalDashboard,
+  skuPortfolio: V3SkuPortfolioItem[],
+  capabilityReview: V3CapabilityReview
+): V3PriorityDecision {
+  const marginGap = dashboard.gaps.find((gap) => gap.metricId === "gross_margin_rate");
+  const riskySkuCount = skuPortfolio.filter((sku) => sku.role === "风险款").length;
+  if (marginGap || riskySkuCount >= 2) {
+    return {
+      layer: "business",
+      focus: "先修利润健康",
+      reason: marginGap
+        ? "毛利低于底线时，继续冲 GMV、定制积分或低价引流会放大亏损。"
+        : "风险 SKU 过多时，继续加流量会放大售后和履约问题。",
+      blockedGoals: ["暂停冲定制交易积分和 GMV", "暂停扩大低毛利引流款"]
+    };
+  }
+
+  const p0OfficialGap = dashboard.gaps.find(
+    (gap) => gap.priority === "P0" && gap.metricId !== "gross_margin_rate" && gap.metricId !== "quality_refund_rate"
+  );
+  if (p0OfficialGap) {
+    return {
+      layer: "official",
+      focus: `先修${p0OfficialGap.metricLabel}`,
+      reason: `${p0OfficialGap.metricLabel}未达标会先影响平台权益和基础流量承接。`,
+      blockedGoals: ["暂缓商品标题优化", "暂缓扩大投放"]
+    };
+  }
+
+  if (capabilityReview.level === "needs_training") {
+    return {
+      layer: "capability",
+      focus: "先补员工判断能力",
+      reason: "没有归因、停止和 SOP，动作会停留在忙碌而不是复利。",
+      blockedGoals: ["暂缓新增复杂目标", "暂缓多人协作扩张"]
+    };
+  }
+
+  const firstGap = dashboard.gaps[0];
+  return {
+    layer: firstGap ? "official" : "capability",
+    focus: firstGap ? `推进${firstGap.metricLabel}` : "沉淀有效 SOP",
+    reason: firstGap ? firstGap.whyItMatters : "当前主要目标未见明显缺口，可以把有效动作固化。",
+    blockedGoals: []
+  };
+}
+
+function buildV3CauseHypotheses(
+  dashboard: V2GoalDashboard,
+  skuPortfolio: V3SkuPortfolioItem[],
+  capability: V3CapabilitySnapshot
+): V3CauseHypothesis[] {
+  const hypotheses: V3CauseHypothesis[] = [];
+
+  for (const gap of dashboard.gaps) {
+    if (gap.metricId === "ww_3min_response_rate" || gap.metricId === "factory_service_response_rate_30d") {
+      hypotheses.push({
+        symptom: `${gap.metricLabel}低`,
+        hypothesis: "客服首响机制和快捷回复不足",
+        evidenceToCheck: "未响应消息按时间段和问题类型归因",
+        confidence: "high"
+      });
+      hypotheses.push({
+        symptom: `${gap.metricLabel}低`,
+        hypothesis: "低质量询盘占用客服时间",
+        evidenceToCheck: "最近 20 条询盘按现货、拿样、定制、无效分类",
+        confidence: "medium"
+      });
+    }
+
+    if (gap.metricId === "gross_margin_rate") {
+      hypotheses.push({
+        symptom: "毛利率低",
+        hypothesis: "低价引流款和定制报价没有把包装、运费、售后成本算进去",
+        evidenceToCheck: "按 SKU 拆产品、包装、运费、样品、售后和广告成本",
+        confidence: "high"
+      });
+    }
+
+    if (gap.metricId === "monthly_active_small_custom_sku_count") {
+      hypotheses.push({
+        symptom: "小单定制入口不足",
+        hypothesis: "商品没有把 LOGO、刻字、礼品包装的定制场景讲清楚",
+        evidenceToCheck: "检查主推 SKU 的 MOQ、打样周期、定制入口和阶梯价",
+        confidence: "medium"
+      });
+    }
+  }
+
+  if (skuPortfolio.some((sku) => sku.role === "风险款")) {
+    hypotheses.push({
+      symptom: "风险 SKU 占用运营资源",
+      hypothesis: "售后高或毛利低的款仍在继续承接流量",
+      evidenceToCheck: "按 SKU 看有效询盘、毛利、售后、履约风险",
+      confidence: "high"
+    });
+  }
+
+  if (capability.weeklySopCount === 0 || capability.completedAttributionCount === 0) {
+    hypotheses.push({
+      symptom: "员工动作不能复用",
+      hypothesis: "每天只完成任务，没有形成归因和 SOP",
+      evidenceToCheck: "检查本周是否有原因归因表、停止动作和 SOP 文档",
+      confidence: "high"
+    });
+  }
+
+  return dedupeV3Hypotheses(hypotheses);
+}
+
+function buildV3ExperimentCards(
+  dashboard: V2GoalDashboard,
+  hypotheses: V3CauseHypothesis[],
+  priorityDecision: V3PriorityDecision
+): V3ExperimentCard[] {
+  if (priorityDecision.layer === "business") {
+    return [
+      {
+        id: "exp-margin-audit",
+        targetMetricId: "gross_margin_rate",
+        title: "重算主推 SKU 真实毛利并停止低毛利订单",
+        hypothesis: "低价引流和定制报价没有覆盖真实成本",
+        action: "按 SKU 拆产品、包装、运费、样品、售后、广告成本，标记低毛利订单来源。",
+        expectedChange: "7 天内毛利率回到 18% 以上",
+        successCriteria: "低毛利订单占比下降，仍有有效询盘和报价继续沟通",
+        stopCondition: "调价后有效询盘断崖式下降，改查 SKU 定位和客户类型",
+        reviewCadence: "weekly"
+      }
+    ];
+  }
+
+  const firstGap = dashboard.gaps[0];
+  if (!firstGap) {
+    return [
+      {
+        id: "exp-sop-asset",
+        targetMetricId: "weekly_sop_count",
+        title: "把本周有效动作沉淀成 SOP",
+        hypothesis: "有效动作被写清后，员工下周可独立复用",
+        action: "写清适用场景、操作步骤、截图证据、失败停止条件。",
+        expectedChange: "本周新增 1 条可复用 SOP",
+        successCriteria: "下周无需负责人提醒即可按 SOP 执行",
+        stopCondition: "换人执行失败，回炉补充判断条件",
+        reviewCadence: "weekly"
+      }
+    ];
+  }
+
+  const hypothesis = hypotheses.find((item) => firstGap.metricLabel && item.symptom.includes(firstGap.metricLabel));
+  if (firstGap.metricId === "ww_3min_response_rate") {
+    return [
+      {
+        id: "exp-response-quick-reply",
+        targetMetricId: "ww_3min_response_rate",
+        title: "首响机制实验",
+        hypothesis: hypothesis?.hypothesis ?? "客服首响机制和快捷回复不足",
+        action: "补 20 条保温杯快捷回复，开启手机提醒，并把晚回消息按时间段归因。",
+        expectedChange: "3 天内旺旺 3 分钟响应率提升到 60% 以上",
+        successCriteria: "响应率达标，未响应原因中话术不会答的占比下降",
+        stopCondition: "连续 3 天无改善，改查低质量询盘和排班",
+        reviewCadence: "daily"
+      }
+    ];
+  }
+
+  return [
+    {
+      id: `exp-${firstGap.metricId}`,
+      targetMetricId: firstGap.metricId,
+      title: `${firstGap.metricLabel}纠偏实验`,
+      hypothesis: hypothesis?.hypothesis ?? `${firstGap.metricLabel}背后存在未归因的执行问题`,
+      action: getV2MetricDefinition(firstGap.metricId).method,
+      expectedChange: `${firstGap.metricLabel}在本周期向目标靠近`,
+      successCriteria: `${firstGap.metricLabel}改善，并留下可检查证据`,
+      stopCondition: "一个复盘周期无改善，停止原动作并重做原因归因",
+      reviewCadence: firstGap.cadence
+    }
+  ];
+}
+
+function buildV3SkuPortfolio(items: V3SkuFact[]): V3SkuPortfolioItem[] {
+  return items.map((item) => {
+    if (item.afterSalesRate >= 0.06 || item.fulfillmentRisk === "high" || item.grossMarginRate < 0.1) {
+      return {
+        ...item,
+        role: "风险款",
+        recommendation: "先控售后、履约和毛利，不继续加流量。"
+      };
+    }
+
+    if (item.customizationRequests >= 5 && item.grossMarginRate >= 0.18) {
+      return {
+        ...item,
+        role: "定制款",
+        recommendation: "补 LOGO、刻字、礼品包装、MOQ、打样周期和阶梯价。"
+      };
+    }
+
+    if (item.repeatOrders >= 3) {
+      return {
+        ...item,
+        role: "复购款",
+        recommendation: "稳定库存、规格和老客补货提醒。"
+      };
+    }
+
+    if (item.grossMarginRate >= 0.28 && item.conversionRate >= 0.08) {
+      return {
+        ...item,
+        role: "利润款",
+        recommendation: "承接报价转化，避免被低价引流款稀释。"
+      };
+    }
+
+    if (item.inquiries >= 15 && item.validInquiryRate >= 0.35) {
+      return {
+        ...item,
+        role: "引流款",
+        recommendation: "保留流量入口，但设置毛利和低质量询盘警戒线。"
+      };
+    }
+
+    return {
+      ...item,
+      role: "淘汰款",
+      recommendation: "继续观察一周，无有效询盘或转化就降权。"
+    };
+  });
+}
+
+function buildV3CapabilityReview(capability: V3CapabilitySnapshot): V3CapabilityReview {
+  const nextTraining: string[] = [];
+  if (capability.weeklySopCount < 1) nextTraining.push("本周至少沉淀 1 条有效动作 SOP");
+  if (capability.completedAttributionCount < 2) nextTraining.push("每天至少完成 1 次询盘或订单原因归因");
+  if (capability.stoppedIneffectiveActions < 1) nextTraining.push("明确停止 1 个无效动作，而不是继续忙");
+  if (capability.independentJudgmentCount < 2) nextTraining.push("记录 2 次员工独立判断及依据");
+
+  const level =
+    nextTraining.length >= 3 ? "needs_training" : nextTraining.length > 0 ? "developing" : "independent";
+
+  return {
+    level,
+    summary:
+      level === "independent"
+        ? "员工已具备基础归因、停止和 SOP 复用能力。"
+        : level === "developing"
+          ? "员工能执行，但判断和沉淀还不稳定。"
+          : "员工仍偏任务执行，需要训练归因、停止和 SOP。",
+    nextTraining
+  };
+}
+
+function dedupeV3Hypotheses(items: V3CauseHypothesis[]): V3CauseHypothesis[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = `${item.symptom}-${item.hypothesis}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function severityRank(severity: Gap["severity"]): number {

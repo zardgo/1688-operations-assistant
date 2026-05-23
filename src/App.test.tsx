@@ -12,7 +12,9 @@ describe("1688 operations assistant UI", () => {
     expect(screen.getByRole("button", { name: "数据录入" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "目标差距" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "路径拆解" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "动作回测" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "经营推理" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "SKU 组合" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "员工能力" })).toBeInTheDocument();
 
     const responseInput = screen.getByLabelText("旺旺 3 分钟响应率");
     await user.clear(responseInput);
@@ -40,5 +42,30 @@ describe("1688 operations assistant UI", () => {
 
     expect(screen.getByText("已验证")).toBeInTheDocument();
     expect(screen.getByText(/52% -> 62%/)).toBeInTheDocument();
+  });
+
+  it("shows V3 reasoning, experiments, SKU portfolio, and capability training", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "经营推理" }));
+
+    expect(screen.getByText("优先级裁判")).toBeInTheDocument();
+    expect(screen.getByText("先修利润健康")).toBeInTheDocument();
+    expect(screen.getByText("暂停冲定制交易积分和 GMV")).toBeInTheDocument();
+    expect(screen.getAllByText("原因假设").length).toBeGreaterThan(0);
+    expect(screen.getByText("低价引流和定制报价没有覆盖真实成本")).toBeInTheDocument();
+    expect(screen.getByText("7 天内毛利率回到 18% 以上")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "SKU 组合" }));
+
+    expect(screen.getByText("316 商务礼品杯")).toBeInTheDocument();
+    expect(screen.getAllByText("定制款").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("风险款").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "员工能力" }));
+
+    expect(screen.getByText("员工仍偏任务执行，需要训练归因、停止和 SOP。")).toBeInTheDocument();
+    expect(screen.getByText("本周至少沉淀 1 条有效动作 SOP")).toBeInTheDocument();
   });
 });

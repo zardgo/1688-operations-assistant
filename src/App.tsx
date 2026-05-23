@@ -3,9 +3,12 @@ import {
   Activity,
   BarChart3,
   BookOpenCheck,
+  Brain,
   CheckCircle2,
   ClipboardList,
   Factory,
+  GraduationCap,
+  PackageCheck,
   RotateCcw,
   Target
 } from "lucide-react";
@@ -13,15 +16,18 @@ import {
   backtestV2Action,
   buildV2ActionPlan,
   buildV2GoalDashboard,
+  buildV3OperatingReview,
   type V2Action,
   type V2BacktestResult,
   type V2GoalId,
   type V2MetricId,
-  type V2MetricReadingInput
+  type V2MetricReadingInput,
+  type V3CapabilitySnapshot,
+  type V3SkuFact
 } from "./lib/operations";
 import "./styles.css";
 
-type Page = "entry" | "gaps" | "path" | "backtest";
+type Page = "entry" | "gaps" | "path" | "backtest" | "reasoning" | "sku" | "capability";
 
 type EditableMetric = {
   id: V2MetricId;
@@ -35,7 +41,10 @@ const pageLabels: Record<Page, string> = {
   entry: "数据录入",
   gaps: "目标差距",
   path: "路径拆解",
-  backtest: "动作回测"
+  backtest: "动作回测",
+  reasoning: "经营推理",
+  sku: "SKU 组合",
+  capability: "员工能力"
 };
 
 const goalOptions: Array<{ id: V2GoalId; label: string }> = [
@@ -88,6 +97,13 @@ const editableMetrics: EditableMetric[] = [
     helper: "定制成交规范度",
     unit: "%",
     period: "2026-05-23"
+  },
+  {
+    id: "gross_margin_rate",
+    label: "毛利率",
+    helper: "每周录入真实毛利，含包装、运费、售后、广告",
+    unit: "%",
+    period: "2026-W21"
   }
 ];
 
@@ -99,9 +115,52 @@ const initialValues: Record<V2MetricId, number> = {
   monthly_active_small_custom_sku_count: 1,
   custom_trade_points_30d: 60000,
   contract_payment_rate: 0.45,
-  gross_margin_rate: 0.21,
+  gross_margin_rate: 0.11,
   quality_refund_rate: 0.01,
   weekly_sop_count: 0
+};
+
+const sampleSkuFacts: V3SkuFact[] = [
+  {
+    name: "316 商务礼品杯",
+    inquiries: 18,
+    validInquiryRate: 0.72,
+    grossMarginRate: 0.32,
+    conversionRate: 0.18,
+    customizationRequests: 9,
+    repeatOrders: 2,
+    afterSalesRate: 0.01,
+    fulfillmentRisk: "low"
+  },
+  {
+    name: "低价通用杯",
+    inquiries: 25,
+    validInquiryRate: 0.28,
+    grossMarginRate: 0.08,
+    conversionRate: 0.04,
+    customizationRequests: 1,
+    repeatOrders: 0,
+    afterSalesRate: 0.03,
+    fulfillmentRisk: "medium"
+  },
+  {
+    name: "掉漆儿童杯",
+    inquiries: 10,
+    validInquiryRate: 0.42,
+    grossMarginRate: 0.2,
+    conversionRate: 0.08,
+    customizationRequests: 1,
+    repeatOrders: 0,
+    afterSalesRate: 0.09,
+    fulfillmentRisk: "high"
+  }
+];
+
+const sampleCapability: V3CapabilitySnapshot = {
+  weeklySopCount: 0,
+  completedAttributionCount: 0,
+  stoppedIneffectiveActions: 0,
+  independentJudgmentCount: 0
 };
 
 export default function App() {
@@ -122,6 +181,16 @@ export default function App() {
   );
   const dashboard = useMemo(() => buildV2GoalDashboard(goalId, readings), [goalId, readings]);
   const actionPlan = useMemo(() => buildV2ActionPlan(dashboard), [dashboard]);
+  const v3Review = useMemo(
+    () =>
+      buildV3OperatingReview({
+        goalId,
+        readings,
+        skuFacts: sampleSkuFacts,
+        capability: sampleCapability
+      }),
+    [goalId, readings]
+  );
   const firstAction = actionPlan.actions[0] ?? null;
 
   function updateMetric(metric: EditableMetric, rawValue: string) {
@@ -144,7 +213,7 @@ export default function App() {
     <main className="app-shell">
       <header className="topbar v2-topbar">
         <div>
-          <p className="eyebrow">保温杯 / 数据驱动 / V2</p>
+          <p className="eyebrow">保温杯 / 经营推理 / V3</p>
           <h1>1688 运营助手</h1>
         </div>
         <label className="scenario-picker">
@@ -159,7 +228,7 @@ export default function App() {
         </label>
       </header>
 
-      <nav className="mode-tabs v2-tabs" aria-label="V2 页面">
+      <nav className="mode-tabs v2-tabs" aria-label="V3 页面">
         {(Object.keys(pageLabels) as Page[]).map((key) => (
           <button className={page === key ? "active" : ""} key={key} type="button" onClick={() => setPage(key)}>
             {pageLabels[key]}
@@ -175,14 +244,14 @@ export default function App() {
           <small>{dashboard.summary}</small>
         </div>
         <div className="risk-explain">
-          <p>录入频率按指标属性分层：响应、履约、积分每日看；小单定制入口每月看；SOP 每周回测。</p>
+          <p>V3 不只看官方指标，还会同时裁决经营健康和员工能力，避免为了冲平台目标把利润和判断力打没。</p>
           <div className="flow-line">
-            <span>目标</span>
-            <span>数据</span>
-            <span>差距</span>
-            <span>路径</span>
-            <span>动作</span>
-            <span>回测</span>
+            {v3Review.goalLayers.map((layer) => (
+              <span key={layer.id}>{layer.label}</span>
+            ))}
+            <span>原因假设</span>
+            <span>实验卡</span>
+            <span>SOP</span>
           </div>
         </div>
       </section>
@@ -365,6 +434,135 @@ export default function App() {
           </div>
         </section>
       )}
+
+      {page === "reasoning" && (
+        <section className="page-grid reasoning-grid">
+          <div className="panel task-panel">
+            <div className="section-title">
+              <Brain aria-hidden="true" />
+              <h2>优先级裁判</h2>
+            </div>
+            <div className="decision-card">
+              <span>{layerLabel(v3Review.priorityDecision.layer)}</span>
+              <strong>{v3Review.priorityDecision.focus}</strong>
+              <p>{v3Review.priorityDecision.reason}</p>
+              <div className="block-list">
+                {v3Review.priorityDecision.blockedGoals.map((goal) => (
+                  <em key={goal}>{goal}</em>
+                ))}
+              </div>
+            </div>
+
+            <div className="section-title stacked-title">
+              <BarChart3 aria-hidden="true" />
+              <h2>原因假设</h2>
+            </div>
+            <div className="hypothesis-list">
+              {v3Review.causeHypotheses.slice(0, 4).map((item) => (
+                <article className="hypothesis-card" key={`${item.symptom}-${item.hypothesis}`}>
+                  <span>{item.confidence}</span>
+                  <strong>{item.hypothesis}</strong>
+                  <p>{item.symptom}</p>
+                  <small>{item.evidenceToCheck}</small>
+                </article>
+              ))}
+            </div>
+          </div>
+          <aside className="panel method-panel">
+            <div className="section-title">
+              <CheckCircle2 aria-hidden="true" />
+              <h2>动作实验卡</h2>
+            </div>
+            {v3Review.experimentCards.map((experiment) => (
+              <article className="experiment-card" key={experiment.id}>
+                <span>{experiment.reviewCadence}</span>
+                <strong>{experiment.title}</strong>
+                <p>{experiment.hypothesis}</p>
+                <dl>
+                  <dt>动作</dt>
+                  <dd>{experiment.action}</dd>
+                  <dt>预期</dt>
+                  <dd>{experiment.expectedChange}</dd>
+                  <dt>停止</dt>
+                  <dd>{experiment.stopCondition}</dd>
+                </dl>
+              </article>
+            ))}
+          </aside>
+        </section>
+      )}
+
+      {page === "sku" && (
+        <section className="page-grid sku-grid">
+          <div className="panel task-panel">
+            <div className="section-title">
+              <PackageCheck aria-hidden="true" />
+              <h2>SKU 经营组合</h2>
+            </div>
+            <div className="sku-list">
+              {v3Review.skuPortfolio.map((sku) => (
+                <article className={`sku-card ${sku.role === "风险款" ? "risk" : ""}`} key={sku.name}>
+                  <span>{sku.role}</span>
+                  <strong>{sku.name}</strong>
+                  <p>{sku.recommendation}</p>
+                  <div className="sku-metrics">
+                    <small>询盘 {sku.inquiries}</small>
+                    <small>有效 {Math.round(sku.validInquiryRate * 100)}%</small>
+                    <small>毛利 {Math.round(sku.grossMarginRate * 100)}%</small>
+                    <small>售后 {Math.round(sku.afterSalesRate * 100)}%</small>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+          <aside className="panel method-panel">
+            <div className="section-title">
+              <Target aria-hidden="true" />
+              <h2>组合原则</h2>
+            </div>
+            <div className="cadence-list">
+              <p><strong>定制款</strong> 负责 LOGO、刻字、礼品包装和找工厂积分。</p>
+              <p><strong>引流款</strong> 可以带询盘，但必须有毛利和低质量询盘警戒线。</p>
+              <p><strong>风险款</strong> 先控售后、履约和毛利，不继续加流量。</p>
+            </div>
+          </aside>
+        </section>
+      )}
+
+      {page === "capability" && (
+        <section className="page-grid capability-grid">
+          <div className="panel task-panel">
+            <div className="section-title">
+              <GraduationCap aria-hidden="true" />
+              <h2>员工能力复盘</h2>
+            </div>
+            <div className="decision-card">
+              <span>{v3Review.capabilityReview.level}</span>
+              <strong>{v3Review.capabilityReview.summary}</strong>
+              <p>能力目标不是多填表，而是让员工能归因、能停止无效动作、能沉淀 SOP。</p>
+            </div>
+            <div className="training-list">
+              {v3Review.capabilityReview.nextTraining.map((item) => (
+                <p key={item}>{item}</p>
+              ))}
+            </div>
+          </div>
+          <aside className="panel method-panel">
+            <div className="section-title">
+              <BookOpenCheck aria-hidden="true" />
+              <h2>三层目标</h2>
+            </div>
+            <div className="layer-list">
+              {v3Review.goalLayers.map((layer) => (
+                <article key={layer.id}>
+                  <span>{layer.label}</span>
+                  <p>{layer.purpose}</p>
+                </article>
+              ))}
+            </div>
+          </aside>
+        </section>
+      )}
     </main>
   );
 }
@@ -378,4 +576,10 @@ function formatSopState(state: V2Action["sopState"]): string {
   if (state === "validated") return "已验证";
   if (state === "stopped") return "停止";
   return "SOP 候选";
+}
+
+function layerLabel(layer: "official" | "business" | "capability"): string {
+  if (layer === "official") return "官方目标";
+  if (layer === "business") return "经营目标";
+  return "能力目标";
 }

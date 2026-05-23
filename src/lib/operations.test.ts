@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   backtestV2Action,
+  buildV3OperatingReview,
   buildV2ActionPlan,
   buildV2GoalDashboard,
   buildKeywordMatrix,
@@ -197,5 +198,114 @@ describe("1688 operations engine", () => {
     expect(improved.summary).toContain("52% -> 62%");
     expect(weak.effect).toBe("watch");
     expect(weak.sopState).toBe("candidate");
+  });
+
+  it("builds V3 goal layers and blocks platform growth when profit health is broken", () => {
+    const review = buildV3OperatingReview({
+      goalId: "factory_bronze",
+      readings: [
+        { id: "ww_3min_response_rate", value: 0.66, period: "2026-05-23" },
+        { id: "factory_service_response_rate_30d", value: 0.63, period: "2026-05-23" },
+        { id: "custom_trade_points_30d", value: 60000, period: "2026-05-23" },
+        { id: "gross_margin_rate", value: 0.11, period: "2026-W21" }
+      ],
+      skuFacts: [],
+      capability: {
+        weeklySopCount: 0,
+        completedAttributionCount: 1,
+        stoppedIneffectiveActions: 0,
+        independentJudgmentCount: 1
+      }
+    });
+
+    expect(review.goalLayers.map((layer) => layer.id)).toEqual(["official", "business", "capability"]);
+    expect(review.priorityDecision.layer).toBe("business");
+    expect(review.priorityDecision.focus).toBe("先修利润健康");
+    expect(review.priorityDecision.blockedGoals).toContain("暂停冲定制交易积分和 GMV");
+  });
+
+  it("turns symptoms into cause hypotheses and experiment cards", () => {
+    const review = buildV3OperatingReview({
+      goalId: "factory_bronze",
+      readings: [
+        { id: "ww_3min_response_rate", value: 0.52, period: "2026-05-23" },
+        { id: "factory_service_response_rate_30d", value: 0.55, period: "2026-05-23" }
+      ],
+      skuFacts: [],
+      capability: {
+        weeklySopCount: 1,
+        completedAttributionCount: 2,
+        stoppedIneffectiveActions: 1,
+        independentJudgmentCount: 3
+      }
+    });
+
+    expect(review.causeHypotheses[0]).toMatchObject({
+      symptom: "旺旺 3 分钟响应率低",
+      hypothesis: "客服首响机制和快捷回复不足",
+      evidenceToCheck: "未响应消息按时间段和问题类型归因"
+    });
+    expect(review.experimentCards[0]).toMatchObject({
+      targetMetricId: "ww_3min_response_rate",
+      hypothesis: "客服首响机制和快捷回复不足",
+      expectedChange: "3 天内旺旺 3 分钟响应率提升到 60% 以上",
+      stopCondition: "连续 3 天无改善，改查低质量询盘和排班"
+    });
+  });
+
+  it("classifies thermos SKU portfolio and reviews employee capability", () => {
+    const review = buildV3OperatingReview({
+      goalId: "l_growth",
+      readings: [{ id: "gross_margin_rate", value: 0.22, period: "2026-W21" }],
+      skuFacts: [
+        {
+          name: "316 商务礼品杯",
+          inquiries: 18,
+          validInquiryRate: 0.72,
+          grossMarginRate: 0.32,
+          conversionRate: 0.18,
+          customizationRequests: 9,
+          repeatOrders: 2,
+          afterSalesRate: 0.01,
+          fulfillmentRisk: "low"
+        },
+        {
+          name: "低价通用杯",
+          inquiries: 25,
+          validInquiryRate: 0.28,
+          grossMarginRate: 0.08,
+          conversionRate: 0.04,
+          customizationRequests: 1,
+          repeatOrders: 0,
+          afterSalesRate: 0.03,
+          fulfillmentRisk: "medium"
+        },
+        {
+          name: "掉漆儿童杯",
+          inquiries: 10,
+          validInquiryRate: 0.42,
+          grossMarginRate: 0.2,
+          conversionRate: 0.08,
+          customizationRequests: 1,
+          repeatOrders: 0,
+          afterSalesRate: 0.09,
+          fulfillmentRisk: "high"
+        }
+      ],
+      capability: {
+        weeklySopCount: 0,
+        completedAttributionCount: 0,
+        stoppedIneffectiveActions: 0,
+        independentJudgmentCount: 0
+      }
+    });
+
+    expect(review.skuPortfolio.map((sku) => [sku.name, sku.role])).toEqual([
+      ["316 商务礼品杯", "定制款"],
+      ["低价通用杯", "风险款"],
+      ["掉漆儿童杯", "风险款"]
+    ]);
+    expect(review.capabilityReview.level).toBe("needs_training");
+    expect(review.capabilityReview.nextTraining).toContain("本周至少沉淀 1 条有效动作 SOP");
   });
 });

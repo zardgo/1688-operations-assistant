@@ -124,7 +124,7 @@ h2 {
 }
 
 .mode-tabs.v2-tabs {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 
 .mode-tabs button,
@@ -250,7 +250,11 @@ h2 {
 .entry-list,
 .gap-list,
 .path-list,
-.cadence-list {
+.cadence-list,
+.hypothesis-list,
+.sku-list,
+.training-list,
+.layer-list {
   display: grid;
   gap: 10px;
 }
@@ -364,7 +368,12 @@ h2 {
 
 .gap-card p,
 .path-card p,
-.backtest-panel p {
+.backtest-panel p,
+.decision-card p,
+.hypothesis-card p,
+.experiment-card p,
+.sku-card p,
+.layer-list p {
   margin-bottom: 0;
   color: #3c473f;
   line-height: 1.65;
@@ -389,6 +398,130 @@ h2 {
 
 .section-title svg {
   color: var(--green);
+}
+
+.stacked-title {
+  margin-top: 18px;
+}
+
+.decision-card,
+.hypothesis-card,
+.experiment-card,
+.sku-card,
+.layer-list article {
+  display: grid;
+  gap: 8px;
+  padding: 15px;
+  background: var(--wash);
+  border: 1px solid var(--line);
+}
+
+.decision-card {
+  border-left: 8px solid var(--red);
+}
+
+.decision-card > span,
+.hypothesis-card > span,
+.experiment-card > span,
+.sku-card > span,
+.layer-list span {
+  width: fit-content;
+  padding: 3px 7px;
+  color: #fffff8;
+  font-size: 12px;
+  font-weight: 900;
+  background: var(--dark);
+}
+
+.decision-card strong,
+.hypothesis-card strong,
+.experiment-card strong,
+.sku-card strong {
+  min-width: 0;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.block-list,
+.sku-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.block-list em,
+.sku-metrics small {
+  padding: 5px 8px;
+  color: #fff8ec;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+  background: var(--red);
+}
+
+.hypothesis-card {
+  border-left: 6px solid var(--blue);
+}
+
+.hypothesis-card small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.experiment-card {
+  border-left: 8px solid var(--green);
+}
+
+.experiment-card dl {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 8px 10px;
+  margin-bottom: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.experiment-card dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.experiment-card dd {
+  min-width: 0;
+  margin: 0;
+  line-height: 1.55;
+}
+
+.sku-list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sku-card {
+  border-left: 7px solid var(--green);
+}
+
+.sku-card.risk {
+  border-left-color: var(--red);
+}
+
+.sku-metrics small {
+  color: var(--ink);
+  background: #e8efe8;
+  border: 1px solid #c6d4c7;
+}
+
+.training-list p {
+  margin-bottom: 0;
+  padding: 12px;
+  color: var(--ink);
+  font-weight: 800;
+  background: #fff8ec;
+  border: 1px solid #e5c48a;
+}
+
+.layer-list article {
+  border-left: 6px solid var(--blue);
 }
 
 .task-list {
@@ -579,7 +712,8 @@ h2 {
   .topbar,
   .risk-strip,
   .page-grid,
-  .review-grid {
+  .review-grid,
+  .sku-list {
     grid-template-columns: 1fr;
   }
 }
@@ -612,7 +746,8 @@ h2 {
 
   .task-head,
   .task-card dl,
-  .metric-list div {
+  .metric-list div,
+  .experiment-card dl {
     grid-template-columns: 1fr;
   }
 }
