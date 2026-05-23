@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Factory,
   GraduationCap,
+  ShieldCheck,
   PackageCheck,
   RotateCcw,
   Target
@@ -28,11 +29,21 @@ import {
   type V3CapabilitySnapshot,
   type V3SkuFact,
   type V4DailyFactInput,
-  type V5ChecklistBacktestResult
+type V5ChecklistBacktestResult
 } from "./lib/operations";
 import "./styles.css";
 
-type Page = "entry" | "daily" | "loop" | "gaps" | "path" | "backtest" | "reasoning" | "sku" | "capability";
+type Page =
+  | "entry"
+  | "daily"
+  | "loop"
+  | "rules"
+  | "gaps"
+  | "path"
+  | "backtest"
+  | "reasoning"
+  | "sku"
+  | "capability";
 
 type EditableMetric = {
   id: V2MetricId;
@@ -46,6 +57,7 @@ const pageLabels: Record<Page, string> = {
   entry: "数据录入",
   daily: "每日经营",
   loop: "V5 闭环",
+  rules: "规则版本",
   gaps: "目标差距",
   path: "路径拆解",
   backtest: "动作回测",
@@ -673,6 +685,54 @@ export default function App() {
         </section>
       )}
 
+      {page === "rules" && (
+        <section className="page-grid rules-grid">
+          <div className="panel task-panel">
+            <div className="section-title">
+              <ShieldCheck aria-hidden="true" />
+              <h2>规则版本库</h2>
+            </div>
+            <div className="rule-list">
+              {dashboard.ruleVersions.map((rule) => (
+                <article className="rule-card" key={rule.id}>
+                  <div className="rule-card-head">
+                    <span className={rule.manuallyConfirmed ? "confirmed" : "unconfirmed"}>
+                      {rule.manuallyConfirmed ? "已人工确认" : "未人工确认"}
+                    </span>
+                    <strong>{rule.name}</strong>
+                  </div>
+                  <dl>
+                    <dt>发布日期</dt>
+                    <dd>{rule.publishedAt}</dd>
+                    <dt>适用范围</dt>
+                    <dd>{rule.scope}</dd>
+                    <dt>官方链接</dt>
+                    <dd>
+                      <a href={rule.sourceUrl} rel="noreferrer" target="_blank">
+                        打开规则
+                      </a>
+                    </dd>
+                    <dt>规则状态</dt>
+                    <dd>{formatRuleStatus(rule.status)}</dd>
+                  </dl>
+                </article>
+              ))}
+            </div>
+          </div>
+          <aside className="panel method-panel">
+            <div className="section-title">
+              <Target aria-hidden="true" />
+              <h2>适用规则版本</h2>
+            </div>
+            <div className="cadence-list">
+              <p><strong>当前目标</strong>{dashboard.goalLabel}</p>
+              <p><strong>确认要求</strong>未人工确认的规则只能作为草案，不能当永久政策。</p>
+              <p><strong>更新动作</strong>官方规则变更后，先新增版本，再切换目标绑定。</p>
+            </div>
+          </aside>
+        </section>
+      )}
+
       {page === "gaps" && (
         <section className="page-grid goals-grid">
           <div className="panel task-panel">
@@ -704,6 +764,17 @@ export default function App() {
                   <span>{reading.label}</span>
                   <strong>{reading.currentLabel}</strong>
                 </div>
+              ))}
+            </div>
+            <div className="section-title stacked-title">
+              <ShieldCheck aria-hidden="true" />
+              <h2>适用规则版本</h2>
+            </div>
+            <div className="rule-chip-list">
+              {dashboard.ruleVersions.map((rule) => (
+                <span className={rule.manuallyConfirmed ? "confirmed" : "unconfirmed"} key={rule.id}>
+                  {rule.name}
+                </span>
               ))}
             </div>
           </aside>
@@ -973,6 +1044,12 @@ function formatReviewCadence(cadence: "daily" | "three_days" | "weekly"): string
   if (cadence === "daily") return "每日";
   if (cadence === "three_days") return "3 天";
   return "每周";
+}
+
+function formatRuleStatus(status: "draft" | "active" | "superseded"): string {
+  if (status === "active") return "生效";
+  if (status === "superseded") return "已被替换";
+  return "草案";
 }
 
 function formatTrendLabel(trend: "up" | "flat" | "down"): string {

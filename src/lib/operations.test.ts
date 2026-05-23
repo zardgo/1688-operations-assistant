@@ -8,6 +8,7 @@ import {
   buildV2ActionPlan,
   buildV2GoalDashboard,
   buildKeywordMatrix,
+  getRuleVersionsForGoal,
   createActionQueue,
   createMvpWeeklyReview,
   diagnoseMvp,
@@ -166,6 +167,29 @@ describe("1688 operations engine", () => {
       currentLabel: "52%",
       targetLabel: "60%"
     });
+    expect(dashboard.ruleVersions.map((rule) => rule.name)).toContain("找工厂铜牌规则");
+    expect(dashboard.ruleVersions.every((rule) => rule.manuallyConfirmed)).toBe(false);
+  });
+
+  it("keeps official target rules as versioned records with confirmation metadata", () => {
+    const rules = getRuleVersionsForGoal("factory_bronze");
+
+    expect(rules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "factory-bronze-2026-05-draft",
+          name: "找工厂铜牌规则",
+          publishedAt: "2026-05-01",
+          sourceUrl: expect.stringContaining("1688.com"),
+          scope: "保温杯 / 找工厂 / 铜牌升级",
+          status: "draft",
+          manuallyConfirmed: false,
+          confirmedBy: null,
+          confirmedAt: null,
+          appliesToGoalIds: expect.arrayContaining(["factory_bronze"])
+        })
+      ])
+    );
   });
 
   it("decomposes V2 gaps into formulas, path steps, and measurable actions", () => {

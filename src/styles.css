@@ -124,7 +124,7 @@ h2 {
 }
 
 .mode-tabs.v2-tabs {
-  grid-template-columns: repeat(9, minmax(0, 1fr));
+  grid-template-columns: repeat(10, minmax(0, 1fr));
 }
 
 .mode-tabs button,
@@ -731,6 +731,72 @@ h2 {
   color: #fff8ec;
 }
 
+.rule-list,
+.rule-chip-list {
+  display: grid;
+  gap: 10px;
+}
+
+.rule-card {
+  display: grid;
+  gap: 12px;
+  padding: 15px;
+  background: var(--wash);
+  border: 1px solid var(--line);
+  border-left: 7px solid var(--amber);
+}
+
+.rule-card-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.rule-card-head span,
+.rule-chip-list span {
+  width: fit-content;
+  padding: 4px 8px;
+  color: #fffff8;
+  font-size: 12px;
+  font-weight: 900;
+  background: var(--amber);
+}
+
+.rule-card-head span.confirmed,
+.rule-chip-list span.confirmed {
+  background: var(--green);
+}
+
+.rule-card-head strong {
+  min-width: 0;
+  font-size: 20px;
+}
+
+.rule-card dl {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 9px 12px;
+  margin-bottom: 0;
+}
+
+.rule-card dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.rule-card dd {
+  min-width: 0;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.rule-card a {
+  color: var(--blue);
+  font-weight: 900;
+}
+
 .task-list {
   display: grid;
   gap: 12px;
@@ -966,7 +1032,9 @@ h2 {
   .task-head,
   .task-card dl,
   .metric-list div,
-  .experiment-card dl {
+  .experiment-card dl,
+  .rule-card dl,
+  .rule-card-head {
     grid-template-columns: 1fr;
   }
 }

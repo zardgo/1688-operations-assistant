@@ -193,6 +193,20 @@ export type V2GoalDashboard = {
   summary: string;
   readings: V2MetricSnapshot[];
   gaps: V2MetricGap[];
+  ruleVersions: RuleVersion[];
+};
+
+export type RuleVersion = {
+  id: string;
+  name: string;
+  publishedAt: string;
+  sourceUrl: string;
+  scope: string;
+  status: "draft" | "active" | "superseded";
+  manuallyConfirmed: boolean;
+  confirmedBy: string | null;
+  confirmedAt: string | null;
+  appliesToGoalIds: V2GoalId[];
 };
 
 export type V2PathStep = {
@@ -496,6 +510,69 @@ const v2GoalLabels: Record<V2GoalId, string> = {
   l_growth: "提升 L 等级",
   lighthouse_repair: "修复新灯塔短板"
 };
+
+const ruleVersions: RuleVersion[] = [
+  {
+    id: "factory-bronze-2026-05-draft",
+    name: "找工厂铜牌规则",
+    publishedAt: "2026-05-01",
+    sourceUrl: "https://factory.1688.com/rules/factory-level",
+    scope: "保温杯 / 找工厂 / 铜牌升级",
+    status: "draft",
+    manuallyConfirmed: false,
+    confirmedBy: null,
+    confirmedAt: null,
+    appliesToGoalIds: ["factory_bronze"]
+  },
+  {
+    id: "factory-silver-2026-05-draft",
+    name: "找工厂银牌规则",
+    publishedAt: "2026-05-01",
+    sourceUrl: "https://factory.1688.com/rules/factory-level",
+    scope: "保温杯 / 找工厂 / 银牌升级",
+    status: "draft",
+    manuallyConfirmed: false,
+    confirmedBy: null,
+    confirmedAt: null,
+    appliesToGoalIds: ["factory_silver"]
+  },
+  {
+    id: "factory-gold-2026-05-draft",
+    name: "找工厂金牌规则",
+    publishedAt: "2026-05-01",
+    sourceUrl: "https://factory.1688.com/rules/factory-level",
+    scope: "保温杯 / 找工厂 / 金牌升级",
+    status: "draft",
+    manuallyConfirmed: false,
+    confirmedBy: null,
+    confirmedAt: null,
+    appliesToGoalIds: ["factory_gold"]
+  },
+  {
+    id: "service-experience-2026-05-draft",
+    name: "服务体验与响应规则",
+    publishedAt: "2026-05-01",
+    sourceUrl: "https://rule.1688.com/rule/detail",
+    scope: "保温杯 / 服务体验 / 响应与履约",
+    status: "draft",
+    manuallyConfirmed: false,
+    confirmedBy: null,
+    confirmedAt: null,
+    appliesToGoalIds: ["protect_service", "factory_bronze", "factory_silver", "factory_gold", "l_growth", "lighthouse_repair"]
+  },
+  {
+    id: "l-growth-2026-05-draft",
+    name: "店铺 L 等级成长规则",
+    publishedAt: "2026-05-01",
+    sourceUrl: "https://work.1688.com/rule/l-level",
+    scope: "保温杯 / 店铺成长 / L 等级",
+    status: "draft",
+    manuallyConfirmed: false,
+    confirmedBy: null,
+    confirmedAt: null,
+    appliesToGoalIds: ["l_growth"]
+  }
+];
 
 const v2MetricDefinitions: V2MetricDefinition[] = [
   {
@@ -860,8 +937,13 @@ export function buildV2GoalDashboard(goalId: V2GoalId, readings: V2MetricReading
         ? "当前录入数据未发现目标缺口，适合进入周复盘和 SOP 固化。"
         : `当前有 ${gaps.length} 个目标缺口，先处理 ${gaps[0].metricLabel}。`,
     readings: snapshots,
-    gaps
+    gaps,
+    ruleVersions: getRuleVersionsForGoal(goalId)
   };
+}
+
+export function getRuleVersionsForGoal(goalId: V2GoalId): RuleVersion[] {
+  return ruleVersions.filter((rule) => rule.appliesToGoalIds.includes(goalId));
 }
 
 export function buildV3OperatingReview(input: V3OperatingInput): V3OperatingReview {

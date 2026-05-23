@@ -15,6 +15,7 @@ describe("1688 operations assistant UI", () => {
     expect(screen.getByRole("button", { name: "经营推理" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "每日经营" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "V5 闭环" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "规则版本" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "SKU 组合" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "员工能力" })).toBeInTheDocument();
 
@@ -25,6 +26,28 @@ describe("1688 operations assistant UI", () => {
 
     expect(screen.queryByText("旺旺 3 分钟响应率差 8 个百分点")).not.toBeInTheDocument();
     expect(screen.getByText("找工厂服务响应率差 5 个百分点")).toBeInTheDocument();
+    expect(screen.getByText("适用规则版本")).toBeInTheDocument();
+    expect(screen.getByText("找工厂铜牌规则")).toBeInTheDocument();
+  });
+
+  it("shows rule version metadata and manual confirmation status", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "规则版本" }));
+
+    expect(screen.getByRole("heading", { name: "规则版本库" })).toBeInTheDocument();
+    expect(screen.getByText("找工厂铜牌规则")).toBeInTheDocument();
+    expect(screen.getAllByText("发布日期").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("2026-05-01").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("适用范围").length).toBeGreaterThan(0);
+    expect(screen.getByText("保温杯 / 找工厂 / 铜牌升级")).toBeInTheDocument();
+    expect(screen.getAllByText("官方链接").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "打开规则" })[0]).toHaveAttribute(
+      "href",
+      "https://factory.1688.com/rules/factory-level"
+    );
+    expect(screen.getAllByText("未人工确认").length).toBeGreaterThan(0);
   });
 
   it("backtests the first V2 action into a validated SOP", async () => {
