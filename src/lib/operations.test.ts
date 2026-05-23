@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   backtestV2Action,
+  backtestV5ChecklistAction,
+  buildV5OperatingLoop,
   buildV4DailyOperatingReview,
   buildV3OperatingReview,
   buildV2ActionPlan,
@@ -382,5 +384,172 @@ describe("1688 operations engine", () => {
     });
     expect(review.experimentCard.expectedChange).toBe("3 天内访客询盘率回升到 5% 以上");
     expect(review.experimentCard.successCriteria).toContain("询盘数提升");
+  });
+
+  it("builds a V5 operating loop from daily history with funnel bottleneck and checklist", () => {
+    const loop = buildV5OperatingLoop([
+      {
+        date: "2026-05-17",
+        totalExposure: 5200,
+        adExposure: 2600,
+        naturalExposure: 2600,
+        adSpend: 90,
+        visitors: 155,
+        inquiries: 12,
+        payments: 2,
+        paymentAmount: 1600,
+        grossMarginRate: 0.22
+      },
+      {
+        date: "2026-05-18",
+        totalExposure: 5400,
+        adExposure: 2700,
+        naturalExposure: 2700,
+        adSpend: 95,
+        visitors: 162,
+        inquiries: 11,
+        payments: 2,
+        paymentAmount: 1680,
+        grossMarginRate: 0.22
+      },
+      {
+        date: "2026-05-19",
+        totalExposure: 5600,
+        adExposure: 2800,
+        naturalExposure: 2800,
+        adSpend: 98,
+        visitors: 170,
+        inquiries: 10,
+        payments: 2,
+        paymentAmount: 1700,
+        grossMarginRate: 0.21
+      },
+      {
+        date: "2026-05-20",
+        totalExposure: 5800,
+        adExposure: 2900,
+        naturalExposure: 2900,
+        adSpend: 102,
+        visitors: 178,
+        inquiries: 8,
+        payments: 2,
+        paymentAmount: 1720,
+        grossMarginRate: 0.21
+      },
+      {
+        date: "2026-05-21",
+        totalExposure: 6000,
+        adExposure: 3000,
+        naturalExposure: 3000,
+        adSpend: 105,
+        visitors: 185,
+        inquiries: 7,
+        payments: 1,
+        paymentAmount: 900,
+        grossMarginRate: 0.2
+      },
+      {
+        date: "2026-05-22",
+        totalExposure: 6200,
+        adExposure: 3100,
+        naturalExposure: 3100,
+        adSpend: 108,
+        visitors: 190,
+        inquiries: 6,
+        payments: 1,
+        paymentAmount: 920,
+        grossMarginRate: 0.2
+      },
+      {
+        date: "2026-05-23",
+        totalExposure: 6400,
+        adExposure: 3200,
+        naturalExposure: 3200,
+        adSpend: 110,
+        visitors: 200,
+        inquiries: 6,
+        payments: 1,
+        paymentAmount: 940,
+        grossMarginRate: 0.2
+      }
+    ]);
+
+    expect(loop.trends.map((trend) => trend.metricId)).toEqual(
+      expect.arrayContaining(["visitors", "visitor_inquiry_rate", "inquiry_payment_rate", "ad_spend_share"])
+    );
+    expect(loop.funnelStages.map((stage) => stage.id)).toEqual([
+      "exposure_to_visitor",
+      "visitor_to_inquiry",
+      "inquiry_to_payment",
+      "payment_to_profit"
+    ]);
+    expect(loop.primaryBottleneck).toMatchObject({
+      id: "visitor_to_inquiry",
+      label: "访客到询盘",
+      status: "blocked"
+    });
+    expect(loop.checklist[0]).toMatchObject({
+      targetMetricId: "visitor_inquiry_rate",
+      requiresEvidence: false
+    });
+    expect(loop.checklist[0].title).toContain("主推商品");
+  });
+
+  it("backtests a V5 checklist action and promotes effective actions into SOP candidates", () => {
+    const loop = buildV5OperatingLoop([
+      {
+        date: "2026-05-17",
+        totalExposure: 6000,
+        adExposure: 2600,
+        naturalExposure: 3400,
+        adSpend: 80,
+        visitors: 180,
+        inquiries: 5,
+        payments: 1,
+        paymentAmount: 1000,
+        grossMarginRate: 0.22
+      },
+      {
+        date: "2026-05-18",
+        totalExposure: 6200,
+        adExposure: 2700,
+        naturalExposure: 3500,
+        adSpend: 82,
+        visitors: 188,
+        inquiries: 5,
+        payments: 1,
+        paymentAmount: 1020,
+        grossMarginRate: 0.22
+      },
+      {
+        date: "2026-05-19",
+        totalExposure: 6400,
+        adExposure: 2800,
+        naturalExposure: 3600,
+        adSpend: 84,
+        visitors: 195,
+        inquiries: 6,
+        payments: 1,
+        paymentAmount: 1040,
+        grossMarginRate: 0.22
+      }
+    ]);
+
+    const action = loop.checklist[0];
+    const effective = backtestV5ChecklistAction(action, 0.03, 0.061);
+    const watch = backtestV5ChecklistAction(action, 0.03, 0.041);
+
+    expect(effective).toMatchObject({
+      result: "effective",
+      sopCandidate: {
+        sourceActionId: action.id,
+        title: `SOP 候选：${action.title}`
+      }
+    });
+    expect(effective.summary).toContain("3% -> 6.1%");
+    expect(watch).toMatchObject({
+      result: "watch",
+      sopCandidate: null
+    });
   });
 });

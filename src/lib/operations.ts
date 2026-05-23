@@ -380,6 +380,85 @@ export type V4DailyOperatingReview = {
   experimentCard: V4ExperimentCard;
 };
 
+export type V5MetricId =
+  | "total_exposure"
+  | "visitors"
+  | "inquiries"
+  | "payments"
+  | "visitor_inquiry_rate"
+  | "inquiry_payment_rate"
+  | "ad_spend_share"
+  | "gross_margin_rate";
+
+export type V5TrendMetric = {
+  metricId: V5MetricId;
+  label: string;
+  latest: number;
+  previous: number;
+  sevenDayAverage: number;
+  target: number | null;
+  latestLabel: string;
+  previousLabel: string;
+  averageLabel: string;
+  trend: "up" | "flat" | "down";
+  status: "healthy" | "watch" | "blocked";
+};
+
+export type V5FunnelStageId =
+  | "exposure_to_visitor"
+  | "visitor_to_inquiry"
+  | "inquiry_to_payment"
+  | "payment_to_profit";
+
+export type V5FunnelStage = {
+  id: V5FunnelStageId;
+  label: string;
+  metricId: V5MetricId;
+  current: number;
+  target: number;
+  currentLabel: string;
+  targetLabel: string;
+  status: "healthy" | "watch" | "blocked";
+  diagnosis: string;
+};
+
+export type V5ChecklistItem = {
+  id: string;
+  title: string;
+  targetMetricId: V5MetricId;
+  owner: "运营员工" | "客服员工" | "负责人";
+  estimatedMinutes: number;
+  checkLabel: string;
+  notePrompt: string;
+  requiresEvidence: boolean;
+  evidenceTrigger: string;
+  reviewQuestion: string;
+};
+
+export type V5SopCandidate = {
+  title: string;
+  sourceActionId: string;
+  reason: string;
+};
+
+export type V5ChecklistBacktestResult = {
+  actionId: string;
+  result: "effective" | "watch" | "ineffective";
+  beforeLabel: string;
+  afterLabel: string;
+  summary: string;
+  sopCandidate: V5SopCandidate | null;
+};
+
+export type V5OperatingLoop = {
+  latestDate: string;
+  latestReview: V4DailyOperatingReview;
+  trends: V5TrendMetric[];
+  funnelStages: V5FunnelStage[];
+  primaryBottleneck: V5FunnelStage;
+  checklist: V5ChecklistItem[];
+};
+
 type MetricRule = {
   metric: keyof WeeklyMetrics;
   label: string;
@@ -831,6 +910,58 @@ export function buildV4DailyOperatingReview(input: V4DailyFactInput): V4DailyOpe
   };
 }
 
+export function buildV5OperatingLoop(history: V4DailyFactInput[]): V5OperatingLoop {
+  if (history.length === 0) throw new Error("V5 operating loop requires at least one daily fact.");
+
+  const sortedHistory = [...history].sort((left, right) => left.date.localeCompare(right.date));
+  const latest = sortedHistory[sortedHistory.length - 1];
+  const latestReview = buildV4DailyOperatingReview(latest);
+  const trends = buildV5TrendMetrics(sortedHistory);
+  const funnelStages = buildV5FunnelStages(latestReview);
+  const primaryBottleneck =
+    funnelStages.find((stage) => stage.status === "blocked") ??
+    funnelStages.find((stage) => stage.status === "watch") ??
+    funnelStages[0];
+
+  return {
+    latestDate: latest.date,
+    latestReview,
+    trends,
+    funnelStages,
+    primaryBottleneck,
+    checklist: buildV5Checklist(primaryBottleneck)
+  };
+}
+
+export function backtestV5ChecklistAction(
+  action: V5ChecklistItem,
+  before: number,
+  after: number
+): V5ChecklistBacktestResult {
+  const delta = after - before;
+  const target = getV5MetricTarget(action.targetMetricId);
+  const result: V5ChecklistBacktestResult["result"] =
+    target !== null && after >= target ? "effective" : delta >= 0.01 ? "watch" : "ineffective";
+  const beforeLabel = formatV5MetricValue(action.targetMetricId, before);
+  const afterLabel = formatV5MetricValue(action.targetMetricId, after);
+
+  return {
+    actionId: action.id,
+    result,
+    beforeLabel,
+    afterLabel,
+    summary: `${action.title}：${beforeLabel} -> ${afterLabel}，${formatV5BacktestResult(result)}。`,
+    sopCandidate:
+      result === "effective"
+        ? {
+            sourceActionId: action.id,
+            title: `SOP 候选：${action.title}`,
+            reason: `${getV5MetricLabel(action.targetMetricId)}改善到目标线以上，可进入复用验证。`
+          }
+        : null
+  };
+}
+
 export function buildV2ActionPlan(dashboard: V2GoalDashboard): V2ActionPlan {
   const gapsForAction = dashboard.gaps.slice(0, 5);
   return {
@@ -1138,6 +1269,270 @@ function v4MetricSort(metricId: V4MetricId): number {
     exposure_visitor_rate: 60
   };
   return sort[metricId];
+}
+
+function buildV5TrendMetrics(history: V4DailyFactInput[]): V5TrendMetric[] {
+  const metricIds: V5MetricId[] = [
+    "total_exposure",
+    "visitors",
+    "inquiries",
+    "payments",
+    "visitor_inquiry_rate",
+    "inquiry_payment_rate",
+    "ad_spend_share",
+    "gross_margin_rate"
+  ];
+
+  return metricIds.map((metricId) => {
+    const values = history.map((fact) => getV5MetricValue(fact, metricId));
+    const latest = values[values.length - 1];
+    const previous = values.length >= 2 ? values[values.length - 2] : latest;
+    const recentValues = values.slice(-7);
+    const sevenDayAverage = recentValues.reduce((sum, value) => sum + value, 0) / recentValues.length;
+    const target = getV5MetricTarget(metricId);
+
+    return {
+      metricId,
+      label: getV5MetricLabel(metricId),
+      latest,
+      previous,
+      sevenDayAverage,
+      target,
+      latestLabel: formatV5MetricValue(metricId, latest),
+      previousLabel: formatV5MetricValue(metricId, previous),
+      averageLabel: formatV5MetricValue(metricId, sevenDayAverage),
+      trend: classifyV5Trend(metricId, latest, previous),
+      status: classifyV5MetricStatus(metricId, latest, target)
+    };
+  });
+}
+
+function buildV5FunnelStages(review: V4DailyOperatingReview): V5FunnelStage[] {
+  const metrics = review.derivedMetrics;
+  return [
+    buildV5FunnelStage(
+      "exposure_to_visitor",
+      "曝光到访客",
+      "visitors",
+      metrics.exposureVisitorRate,
+      0.012,
+      "曝光能带来访客，继续看主图和价格带是否稳定。"
+    ),
+    buildV5FunnelStage(
+      "visitor_to_inquiry",
+      "访客到询盘",
+      "visitor_inquiry_rate",
+      metrics.visitorInquiryRate,
+      0.05,
+      "访客进店后没有足够理由发起咨询，优先检查详情页信任和定制表达。"
+    ),
+    buildV5FunnelStage(
+      "inquiry_to_payment",
+      "询盘到支付",
+      "inquiry_payment_rate",
+      metrics.inquiryPaymentRate,
+      0.12,
+      "询盘没有转成支付，优先检查客服分层、报价和合约支付引导。"
+    ),
+    buildV5FunnelStage(
+      "payment_to_profit",
+      "支付到毛利",
+      "gross_margin_rate",
+      review.input.grossMarginRate,
+      0.18,
+      "成交没有守住毛利，先核算成本和低毛利订单来源。"
+    )
+  ];
+}
+
+function buildV5FunnelStage(
+  id: V5FunnelStageId,
+  label: string,
+  metricId: V5MetricId,
+  current: number,
+  target: number,
+  blockedDiagnosis: string
+): V5FunnelStage {
+  const ratio = safeDivide(current, target);
+  const status: V5FunnelStage["status"] = ratio >= 1 ? "healthy" : ratio >= 0.8 ? "watch" : "blocked";
+
+  return {
+    id,
+    label,
+    metricId,
+    current,
+    target,
+    currentLabel: formatV5MetricValue(metricId, current),
+    targetLabel: formatV5MetricValue(metricId, target),
+    status,
+    diagnosis: status === "healthy" ? `${label}达标，暂不作为今日主卡点。` : blockedDiagnosis
+  };
+}
+
+function buildV5Checklist(stage: V5FunnelStage): V5ChecklistItem[] {
+  if (stage.id === "visitor_to_inquiry") {
+    return [
+      {
+        id: "v5-check-product-promise",
+        title: "重做 3 个主推商品的定制承诺",
+        targetMetricId: "visitor_inquiry_rate",
+        owner: "运营员工",
+        estimatedMinutes: 60,
+        checkLabel: "已检查 MOQ、拿样、定制、开票、交期是否前置",
+        notePrompt: "用一句话写下访客为什么不询盘。",
+        requiresEvidence: false,
+        evidenceTrigger: "连续 3 天访客询盘率无改善，或准备进入 SOP 候选时补商品链接和改前改后截图。",
+        reviewQuestion: "访客不询盘是看不懂定制能力、价格带不对，还是信任资产不足？"
+      },
+      {
+        id: "v5-check-inquiry-sample",
+        title: "复盘 10 条最近询盘和未成交访客来源词",
+        targetMetricId: "visitor_inquiry_rate",
+        owner: "运营员工",
+        estimatedMinutes: 30,
+        checkLabel: "已把来源词按现货、拿样、LOGO 定制、无效问价分类",
+        notePrompt: "写下最常见的低质量来源词或缺失信息。",
+        requiresEvidence: false,
+        evidenceTrigger: "低质量来源词占比高时，抽查 3 条询盘样本。",
+        reviewQuestion: "流量是不是进了错误客户？"
+      }
+    ];
+  }
+
+  if (stage.id === "inquiry_to_payment") {
+    return [
+      {
+        id: "v5-check-quote-template",
+        title: "用四问三档模板跟进 10 条询盘",
+        targetMetricId: "inquiry_payment_rate",
+        owner: "客服员工",
+        estimatedMinutes: 45,
+        checkLabel: "已先问用途、数量、预算、交期，再给三档报价",
+        notePrompt: "写下客户不支付的最大原因。",
+        requiresEvidence: false,
+        evidenceTrigger: "连续 3 天支付率无改善时，补 3 条聊天记录截图。",
+        reviewQuestion: "支付低是报价、客户质量，还是合约支付引导不清？"
+      }
+    ];
+  }
+
+  if (stage.id === "payment_to_profit") {
+    return [
+      {
+        id: "v5-check-margin-audit",
+        title: "核算昨日低毛利订单来源",
+        targetMetricId: "gross_margin_rate",
+        owner: "负责人",
+        estimatedMinutes: 45,
+        checkLabel: "已拆产品、包装、运费、售后和广告成本",
+        notePrompt: "写下最低毛利订单来自哪个 SKU 或投放计划。",
+        requiresEvidence: true,
+        evidenceTrigger: "毛利属于高风险项，进入回测前必须留成本表或订单链接。",
+        reviewQuestion: "低毛利是价格、广告、包装运费，还是售后导致？"
+      }
+    ];
+  }
+
+  return [
+    {
+      id: "v5-check-click-promise",
+      title: "检查曝光最高 5 个词的主图和价格承诺",
+      targetMetricId: "visitors",
+      owner: "运营员工",
+      estimatedMinutes: 45,
+      checkLabel: "已检查主图、标题、价格带和工厂标签是否匹配曝光词",
+      notePrompt: "写下点击低的主要原因。",
+      requiresEvidence: false,
+      evidenceTrigger: "曝光访客率连续 3 天不改善时补截图。",
+      reviewQuestion: "曝光吸引的是不是目标采购客户？"
+    }
+  ];
+}
+
+function getV5MetricValue(fact: V4DailyFactInput, metricId: V5MetricId): number {
+  const review = buildV4DailyOperatingReview(fact);
+  const derived = review.derivedMetrics;
+  const values: Record<V5MetricId, number> = {
+    total_exposure: fact.totalExposure,
+    visitors: fact.visitors,
+    inquiries: fact.inquiries,
+    payments: fact.payments,
+    visitor_inquiry_rate: derived.visitorInquiryRate,
+    inquiry_payment_rate: derived.inquiryPaymentRate,
+    ad_spend_share: derived.adSpendShare,
+    gross_margin_rate: fact.grossMarginRate
+  };
+  return values[metricId];
+}
+
+function getV5MetricTarget(metricId: V5MetricId): number | null {
+  const targets: Record<V5MetricId, number | null> = {
+    total_exposure: null,
+    visitors: null,
+    inquiries: null,
+    payments: null,
+    visitor_inquiry_rate: 0.05,
+    inquiry_payment_rate: 0.12,
+    ad_spend_share: 0.12,
+    gross_margin_rate: 0.18
+  };
+  return targets[metricId];
+}
+
+function getV5MetricLabel(metricId: V5MetricId): string {
+  const labels: Record<V5MetricId, string> = {
+    total_exposure: "总曝光",
+    visitors: "访客",
+    inquiries: "询盘",
+    payments: "支付",
+    visitor_inquiry_rate: "访客询盘率",
+    inquiry_payment_rate: "询盘支付率",
+    ad_spend_share: "广告费率",
+    gross_margin_rate: "毛利率"
+  };
+  return labels[metricId];
+}
+
+function formatV5MetricValue(metricId: V5MetricId, value: number): string {
+  if (
+    metricId === "visitor_inquiry_rate" ||
+    metricId === "inquiry_payment_rate" ||
+    metricId === "ad_spend_share" ||
+    metricId === "gross_margin_rate"
+  ) {
+    return formatV4Percent(value);
+  }
+  return Math.round(value).toLocaleString("zh-CN");
+}
+
+function classifyV5Trend(metricId: V5MetricId, latest: number, previous: number): V5TrendMetric["trend"] {
+  const delta = latest - previous;
+  if (Math.abs(delta) < 0.001) return "flat";
+  if (metricId === "ad_spend_share") return delta < 0 ? "up" : "down";
+  return delta > 0 ? "up" : "down";
+}
+
+function classifyV5MetricStatus(
+  metricId: V5MetricId,
+  latest: number,
+  target: number | null
+): V5TrendMetric["status"] {
+  if (target === null) return "healthy";
+  if (metricId === "ad_spend_share") {
+    if (latest <= target) return "healthy";
+    if (latest <= target * 1.2) return "watch";
+    return "blocked";
+  }
+  const ratio = safeDivide(latest, target);
+  if (ratio >= 1) return "healthy";
+  if (ratio >= 0.8) return "watch";
+  return "blocked";
+}
+
+function formatV5BacktestResult(result: V5ChecklistBacktestResult["result"]): string {
+  if (result === "effective") return "有效，可进入 SOP 候选";
+  if (result === "watch") return "有改善但未到目标，继续观察";
+  return "无改善，应停止或换假设";
 }
 
 function buildV3PriorityDecision(

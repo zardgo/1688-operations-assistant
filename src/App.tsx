@@ -14,10 +14,12 @@ import {
 } from "lucide-react";
 import {
   backtestV2Action,
+  backtestV5ChecklistAction,
   buildV2ActionPlan,
   buildV2GoalDashboard,
   buildV3OperatingReview,
   buildV4DailyOperatingReview,
+  buildV5OperatingLoop,
   type V2Action,
   type V2BacktestResult,
   type V2GoalId,
@@ -25,11 +27,12 @@ import {
   type V2MetricReadingInput,
   type V3CapabilitySnapshot,
   type V3SkuFact,
-  type V4DailyFactInput
+  type V4DailyFactInput,
+  type V5ChecklistBacktestResult
 } from "./lib/operations";
 import "./styles.css";
 
-type Page = "entry" | "daily" | "gaps" | "path" | "backtest" | "reasoning" | "sku" | "capability";
+type Page = "entry" | "daily" | "loop" | "gaps" | "path" | "backtest" | "reasoning" | "sku" | "capability";
 
 type EditableMetric = {
   id: V2MetricId;
@@ -42,6 +45,7 @@ type EditableMetric = {
 const pageLabels: Record<Page, string> = {
   entry: "数据录入",
   daily: "每日经营",
+  loop: "V5 闭环",
   gaps: "目标差距",
   path: "路径拆解",
   backtest: "动作回测",
@@ -147,6 +151,93 @@ const initialDailyFacts: V4DailyFactInput = {
   replenishmentBuyerCount: 0
 };
 
+const sampleDailyHistory: V4DailyFactInput[] = [
+  {
+    date: "2026-05-17",
+    totalExposure: 5200,
+    adExposure: 2600,
+    naturalExposure: 2600,
+    adSpend: 90,
+    visitors: 155,
+    inquiries: 12,
+    payments: 2,
+    paymentAmount: 1600,
+    grossMarginRate: 0.22
+  },
+  {
+    date: "2026-05-18",
+    totalExposure: 5400,
+    adExposure: 2700,
+    naturalExposure: 2700,
+    adSpend: 95,
+    visitors: 162,
+    inquiries: 11,
+    payments: 2,
+    paymentAmount: 1680,
+    grossMarginRate: 0.22
+  },
+  {
+    date: "2026-05-19",
+    totalExposure: 5600,
+    adExposure: 2800,
+    naturalExposure: 2800,
+    adSpend: 98,
+    visitors: 170,
+    inquiries: 10,
+    payments: 2,
+    paymentAmount: 1700,
+    grossMarginRate: 0.21
+  },
+  {
+    date: "2026-05-20",
+    totalExposure: 5800,
+    adExposure: 2900,
+    naturalExposure: 2900,
+    adSpend: 102,
+    visitors: 178,
+    inquiries: 8,
+    payments: 2,
+    paymentAmount: 1720,
+    grossMarginRate: 0.21
+  },
+  {
+    date: "2026-05-21",
+    totalExposure: 6000,
+    adExposure: 3000,
+    naturalExposure: 3000,
+    adSpend: 105,
+    visitors: 185,
+    inquiries: 7,
+    payments: 1,
+    paymentAmount: 900,
+    grossMarginRate: 0.2
+  },
+  {
+    date: "2026-05-22",
+    totalExposure: 6200,
+    adExposure: 3100,
+    naturalExposure: 3100,
+    adSpend: 108,
+    visitors: 190,
+    inquiries: 6,
+    payments: 1,
+    paymentAmount: 920,
+    grossMarginRate: 0.2
+  },
+  {
+    date: "2026-05-23",
+    totalExposure: 6400,
+    adExposure: 3200,
+    naturalExposure: 3200,
+    adSpend: 110,
+    visitors: 200,
+    inquiries: 6,
+    payments: 1,
+    paymentAmount: 940,
+    grossMarginRate: 0.2
+  }
+];
+
 const initialValues: Record<V2MetricId, number> = {
   ww_3min_response_rate: 0.52,
   factory_service_response_rate_30d: 0.55,
@@ -210,6 +301,9 @@ export default function App() {
   const [dailyFacts, setDailyFacts] = useState<V4DailyFactInput>(initialDailyFacts);
   const [backtestAfter, setBacktestAfter] = useState("62");
   const [backtestResult, setBacktestResult] = useState<V2BacktestResult | null>(null);
+  const [checkedChecklistIds, setCheckedChecklistIds] = useState<string[]>([]);
+  const [v5BacktestAfter, setV5BacktestAfter] = useState("6.1");
+  const [v5BacktestResult, setV5BacktestResult] = useState<V5ChecklistBacktestResult | null>(null);
 
   const readings = useMemo<V2MetricReadingInput[]>(
     () =>
@@ -233,7 +327,9 @@ export default function App() {
     [goalId, readings]
   );
   const v4Review = useMemo(() => buildV4DailyOperatingReview(dailyFacts), [dailyFacts]);
+  const v5Loop = useMemo(() => buildV5OperatingLoop(sampleDailyHistory), []);
   const firstAction = actionPlan.actions[0] ?? null;
+  const firstChecklistAction = v5Loop.checklist[0] ?? null;
 
   function updateMetric(metric: EditableMetric, rawValue: string) {
     const numericValue = Number(rawValue);
@@ -259,11 +355,24 @@ export default function App() {
     }));
   }
 
+  function toggleChecklist(id: string) {
+    setCheckedChecklistIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    );
+  }
+
+  function runV5Backtest() {
+    if (!firstChecklistAction) return;
+    const before = v5Loop.primaryBottleneck.current;
+    const after = Number(v5BacktestAfter) / 100;
+    setV5BacktestResult(backtestV5ChecklistAction(firstChecklistAction, before, after));
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar v2-topbar">
         <div>
-          <p className="eyebrow">保温杯 / 每日经营 / V4</p>
+          <p className="eyebrow">保温杯 / 员工闭环 / V5</p>
           <h1>1688 运营助手</h1>
         </div>
         <label className="scenario-picker">
@@ -278,7 +387,7 @@ export default function App() {
         </label>
       </header>
 
-      <nav className="mode-tabs v2-tabs" aria-label="V4 页面">
+      <nav className="mode-tabs v2-tabs" aria-label="V5 页面">
         {(Object.keys(pageLabels) as Page[]).map((key) => (
           <button className={page === key ? "active" : ""} key={key} type="button" onClick={() => setPage(key)}>
             {pageLabels[key]}
@@ -294,7 +403,7 @@ export default function App() {
           <small>{dashboard.summary}</small>
         </div>
         <div className="risk-explain">
-          <p>V4 把每日数据接进经营推理：先看官方目标，再看流量、询盘、支付、广告和毛利之间有没有断点。</p>
+          <p>V5 把每日数据变成员工闭环：趋势判断、卡点漏斗、今日 checklist、动作回测和 SOP 候选连在一起。</p>
           <div className="flow-line">
             {v3Review.goalLayers.map((layer) => (
               <span key={layer.id}>{layer.label}</span>
@@ -440,6 +549,126 @@ export default function App() {
               <p><strong>金冠品数</strong>{dailyFacts.crownProductCount} 款</p>
               <p><strong>补单买家数</strong>{dailyFacts.replenishmentBuyerCount} 人</p>
             </div>
+          </aside>
+        </section>
+      )}
+
+      {page === "loop" && (
+        <section className="v5-grid">
+          <div className="panel">
+            <div className="section-title">
+              <BarChart3 aria-hidden="true" />
+              <h2>趋势 BI</h2>
+            </div>
+            <div className="v5-trend-grid">
+              {v5Loop.trends
+                .filter((trend) =>
+                  ["visitors", "visitor_inquiry_rate", "inquiry_payment_rate", "ad_spend_share"].includes(
+                    trend.metricId
+                  )
+                )
+                .map((trend) => (
+                  <article className={`v5-trend-card ${trend.status}`} key={trend.metricId}>
+                    <span>{trend.label}</span>
+                    <strong>{trend.latestLabel}</strong>
+                    <small>7 日均值 {trend.averageLabel}</small>
+                    <em>{formatTrendLabel(trend.trend)}</em>
+                  </article>
+                ))}
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="section-title">
+              <Activity aria-hidden="true" />
+              <h2>卡点漏斗</h2>
+            </div>
+            <div className="v5-funnel">
+              {v5Loop.funnelStages.map((stage) => (
+                <article className={`v5-funnel-stage ${stage.status}`} key={stage.id}>
+                  <span>{formatV5Status(stage.status)}</span>
+                  <strong>{stage.label}</strong>
+                  <p>{stage.currentLabel} / 目标 {stage.targetLabel}</p>
+                </article>
+              ))}
+            </div>
+            <div className="v5-bottleneck">
+              <span>当前主卡点</span>
+              <strong>主卡点：{v5Loop.primaryBottleneck.label}</strong>
+              <p>{v5Loop.primaryBottleneck.diagnosis}</p>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="section-title">
+              <ClipboardList aria-hidden="true" />
+              <h2>今日 Checklist</h2>
+            </div>
+            <div className="v5-checklist">
+              {v5Loop.checklist.map((item) => (
+                <article className="v5-check-item" key={item.id}>
+                  <label>
+                    <input
+                      checked={checkedChecklistIds.includes(item.id)}
+                      type="checkbox"
+                      onChange={() => toggleChecklist(item.id)}
+                    />
+                    <span>{item.checkLabel}</span>
+                  </label>
+                  <strong>{item.title}</strong>
+                  <p>{item.notePrompt}</p>
+                  <small>{item.evidenceTrigger}</small>
+                </article>
+              ))}
+            </div>
+          </div>
+
+          <aside className="panel v5-side-panel">
+            <div className="section-title">
+              <RotateCcw aria-hidden="true" />
+              <h2>动作回测</h2>
+            </div>
+            {firstChecklistAction ? (
+              <>
+                <strong>回测动作：{firstChecklistAction.title}</strong>
+                <p>{firstChecklistAction.reviewQuestion}</p>
+                <label className="metric-input-row compact">
+                  <span>
+                    <strong>回测后 访客询盘率</strong>
+                    <small>填动作后 3 天均值</small>
+                  </span>
+                  <div>
+                    <input
+                      aria-label="回测后 访客询盘率"
+                      inputMode="decimal"
+                      type="number"
+                      value={v5BacktestAfter}
+                      onChange={(event) => setV5BacktestAfter(event.target.value)}
+                    />
+                    <em>%</em>
+                  </div>
+                </label>
+                <button className="primary-action" type="button" onClick={runV5Backtest}>
+                  记录 V5 回测
+                </button>
+              </>
+            ) : (
+              <p className="empty-copy">当前没有需要回测的 checklist。</p>
+            )}
+
+            <div className="section-title stacked-title">
+              <BookOpenCheck aria-hidden="true" />
+              <h2>SOP 候选</h2>
+            </div>
+            {v5BacktestResult ? (
+              <div className={`v5-result-box ${v5BacktestResult.result}`}>
+                <span>{formatV5BacktestLabel(v5BacktestResult.result)}</span>
+                <strong>{v5BacktestResult.summary}</strong>
+                {v5BacktestResult.sopCandidate ? <p>{v5BacktestResult.sopCandidate.title}</p> : null}
+              </div>
+            ) : (
+              <p className="empty-copy">勾选 checklist 并录入回测后，系统判断是否进入 SOP 候选。</p>
+            )}
           </aside>
         </section>
       )}
@@ -744,6 +973,24 @@ function formatReviewCadence(cadence: "daily" | "three_days" | "weekly"): string
   if (cadence === "daily") return "每日";
   if (cadence === "three_days") return "3 天";
   return "每周";
+}
+
+function formatTrendLabel(trend: "up" | "flat" | "down"): string {
+  if (trend === "up") return "向好";
+  if (trend === "down") return "转弱";
+  return "持平";
+}
+
+function formatV5Status(status: "healthy" | "watch" | "blocked"): string {
+  if (status === "healthy") return "达标";
+  if (status === "watch") return "观察";
+  return "卡点";
+}
+
+function formatV5BacktestLabel(result: "effective" | "watch" | "ineffective"): string {
+  if (result === "effective") return "有效";
+  if (result === "watch") return "观察";
+  return "无效";
 }
 
 function formatSopState(state: V2Action["sopState"]): string {

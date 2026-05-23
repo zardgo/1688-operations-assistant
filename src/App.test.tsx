@@ -14,6 +14,7 @@ describe("1688 operations assistant UI", () => {
     expect(screen.getByRole("button", { name: "路径拆解" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "经营推理" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "每日经营" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "V5 闭环" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "SKU 组合" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "员工能力" })).toBeInTheDocument();
 
@@ -104,5 +105,35 @@ describe("1688 operations assistant UI", () => {
     expect(screen.getByText("广告费率过高")).toBeInTheDocument();
     expect(screen.getByText("异常实验卡")).toBeInTheDocument();
     expect(screen.getByText("停止条件")).toBeInTheDocument();
+  });
+
+  it("shows the V5 BI funnel, checklist, action backtest, and SOP candidate areas", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "V5 闭环" }));
+
+    expect(screen.getByRole("heading", { name: "趋势 BI" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "卡点漏斗" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "今日 Checklist" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "动作回测" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "SOP 候选" })).toBeInTheDocument();
+    expect(screen.getByText("访客询盘率")).toBeInTheDocument();
+    expect(screen.getByText("访客到询盘")).toBeInTheDocument();
+    expect(screen.getByText("重做 3 个主推商品的定制承诺")).toBeInTheDocument();
+  });
+
+  it("backtests a checked V5 checklist item into an SOP candidate", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "V5 闭环" }));
+    await user.click(screen.getByRole("checkbox", { name: "已检查 MOQ、拿样、定制、开票、交期是否前置" }));
+    await user.clear(screen.getByLabelText("回测后 访客询盘率"));
+    await user.type(screen.getByLabelText("回测后 访客询盘率"), "6.1");
+    await user.click(screen.getByRole("button", { name: "记录 V5 回测" }));
+
+    expect(screen.getByText("有效")).toBeInTheDocument();
+    expect(screen.getByText("SOP 候选：重做 3 个主推商品的定制承诺")).toBeInTheDocument();
   });
 });
