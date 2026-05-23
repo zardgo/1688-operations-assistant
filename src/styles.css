@@ -124,7 +124,7 @@ h2 {
 }
 
 .mode-tabs.v2-tabs {
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
 }
 
 .mode-tabs button,
@@ -254,9 +254,14 @@ h2 {
 .hypothesis-list,
 .sku-list,
 .training-list,
-.layer-list {
+.layer-list,
+.official-list {
   display: grid;
   gap: 10px;
+}
+
+.daily-entry-list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .metric-input-row {
@@ -524,6 +529,60 @@ h2 {
   border-left: 6px solid var(--blue);
 }
 
+.daily-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.daily-metric-card {
+  display: grid;
+  gap: 6px;
+  min-height: 92px;
+  padding: 14px;
+  background: #f8faf3;
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--blue);
+}
+
+.daily-metric-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.daily-metric-card strong {
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.daily-anomaly {
+  border-left-color: var(--amber);
+}
+
+.daily-anomaly.p0 {
+  border-left-color: var(--red);
+}
+
+.daily-anomaly.p2 {
+  border-left-color: var(--blue);
+}
+
+.daily-anomaly small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.official-list p {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-bottom: 0;
+  padding: 10px 12px;
+  background: var(--wash);
+  border: 1px solid var(--line);
+}
+
 .task-list {
   display: grid;
   gap: 12px;
@@ -713,7 +772,9 @@ h2 {
   .risk-strip,
   .page-grid,
   .review-grid,
-  .sku-list {
+  .sku-list,
+  .daily-entry-list,
+  .daily-metric-grid {
     grid-template-columns: 1fr;
   }
 }

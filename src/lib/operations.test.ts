@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   backtestV2Action,
+  buildV4DailyOperatingReview,
   buildV3OperatingReview,
   buildV2ActionPlan,
   buildV2GoalDashboard,
@@ -307,5 +308,79 @@ describe("1688 operations engine", () => {
     ]);
     expect(review.capabilityReview.level).toBe("needs_training");
     expect(review.capabilityReview.nextTraining).toContain("本周至少沉淀 1 条有效动作 SOP");
+  });
+
+  it("calculates V4 daily operating ratios from raw daily facts", () => {
+    const review = buildV4DailyOperatingReview({
+      date: "2026-04-11",
+      totalExposure: 10000,
+      adExposure: 8000,
+      naturalExposure: 2000,
+      adSpend: 200,
+      visitors: 100,
+      inquiries: 5,
+      payments: 1,
+      paymentAmount: 1000,
+      grossMarginRate: 0.16
+    });
+
+    expect(review.derivedMetrics).toMatchObject({
+      naturalExposureShare: 0.2,
+      adExposureShare: 0.8,
+      exposureVisitorRate: 0.01,
+      visitorInquiryRate: 0.05,
+      inquiryPaymentRate: 0.2,
+      adCostPerInquiry: 40,
+      adCostPerPayment: 200,
+      paymentAverageOrderValue: 1000,
+      adSpendShare: 0.2
+    });
+  });
+
+  it("prioritizes V4 profit repair before scaling traffic", () => {
+    const review = buildV4DailyOperatingReview({
+      date: "2026-04-11",
+      totalExposure: 10000,
+      adExposure: 8200,
+      naturalExposure: 1800,
+      adSpend: 220,
+      visitors: 90,
+      inquiries: 5,
+      payments: 1,
+      paymentAmount: 1000,
+      grossMarginRate: 0.11
+    });
+
+    expect(review.primaryAnomaly).toMatchObject({
+      metricId: "gross_margin_rate",
+      priority: "P0"
+    });
+    expect(review.anomalies.map((item) => item.metricId)).toEqual(
+      expect.arrayContaining(["ad_spend_share", "ad_exposure_share"])
+    );
+    expect(review.experimentCard.title).toContain("先修毛利");
+    expect(review.experimentCard.stopCondition).toContain("有效询盘断崖式下降");
+  });
+
+  it("turns a low visitor inquiry rate into a V4 experiment card", () => {
+    const review = buildV4DailyOperatingReview({
+      date: "2026-04-12",
+      totalExposure: 6000,
+      adExposure: 2400,
+      naturalExposure: 3600,
+      adSpend: 80,
+      visitors: 180,
+      inquiries: 4,
+      payments: 1,
+      paymentAmount: 1000,
+      grossMarginRate: 0.22
+    });
+
+    expect(review.primaryAnomaly).toMatchObject({
+      metricId: "visitor_inquiry_rate",
+      hypothesis: "访客进店后没有看到清楚的保温杯定制、拿样、起订量和交期承诺"
+    });
+    expect(review.experimentCard.expectedChange).toBe("3 天内访客询盘率回升到 5% 以上");
+    expect(review.experimentCard.successCriteria).toContain("询盘数提升");
   });
 });

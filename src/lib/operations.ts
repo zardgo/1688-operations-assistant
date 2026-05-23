@@ -312,6 +312,74 @@ export type V3OperatingReview = {
   capabilityReview: V3CapabilityReview;
 };
 
+export type V4DailyFactInput = {
+  date: string;
+  totalExposure: number;
+  adExposure: number;
+  naturalExposure: number;
+  adSpend: number;
+  visitors: number;
+  inquiries: number;
+  payments: number;
+  paymentAmount: number;
+  grossMarginRate: number;
+  storeLayerRank?: string;
+  spotProductCount?: number;
+  potentialProductCount?: number;
+  crownProductCount?: number;
+  replenishmentBuyerCount?: number;
+};
+
+export type V4DerivedMetrics = {
+  naturalExposureShare: number;
+  adExposureShare: number;
+  exposureVisitorRate: number;
+  visitorInquiryRate: number;
+  inquiryPaymentRate: number;
+  adCostPerInquiry: number;
+  adCostPerPayment: number;
+  paymentAverageOrderValue: number;
+  adSpendShare: number;
+};
+
+export type V4MetricId =
+  | "gross_margin_rate"
+  | "ad_spend_share"
+  | "ad_exposure_share"
+  | "visitor_inquiry_rate"
+  | "inquiry_payment_rate"
+  | "exposure_visitor_rate";
+
+export type V4Anomaly = {
+  metricId: V4MetricId;
+  metricLabel: string;
+  priority: "P0" | "P1" | "P2";
+  currentLabel: string;
+  targetLabel: string;
+  hypothesis: string;
+  experiment: string;
+};
+
+export type V4ExperimentCard = {
+  id: string;
+  title: string;
+  targetMetricId: V4MetricId;
+  hypothesis: string;
+  action: string;
+  expectedChange: string;
+  successCriteria: string;
+  stopCondition: string;
+  reviewCadence: "daily" | "three_days" | "weekly";
+};
+
+export type V4DailyOperatingReview = {
+  input: V4DailyFactInput;
+  derivedMetrics: V4DerivedMetrics;
+  anomalies: V4Anomaly[];
+  primaryAnomaly: V4Anomaly | null;
+  experimentCard: V4ExperimentCard;
+};
+
 type MetricRule = {
   metric: keyof WeeklyMetrics;
   label: string;
@@ -736,6 +804,33 @@ export function buildV3OperatingReview(input: V3OperatingInput): V3OperatingRevi
   };
 }
 
+export function buildV4DailyOperatingReview(input: V4DailyFactInput): V4DailyOperatingReview {
+  const derivedMetrics: V4DerivedMetrics = {
+    naturalExposureShare: safeDivide(input.naturalExposure, input.totalExposure),
+    adExposureShare: safeDivide(input.adExposure, input.totalExposure),
+    exposureVisitorRate: safeDivide(input.visitors, input.totalExposure),
+    visitorInquiryRate: safeDivide(input.inquiries, input.visitors),
+    inquiryPaymentRate: safeDivide(input.payments, input.inquiries),
+    adCostPerInquiry: safeDivide(input.adSpend, input.inquiries),
+    adCostPerPayment: safeDivide(input.adSpend, input.payments),
+    paymentAverageOrderValue: safeDivide(input.paymentAmount, input.payments),
+    adSpendShare: safeDivide(input.adSpend, input.paymentAmount)
+  };
+
+  const anomalies = buildV4Anomalies(input, derivedMetrics).sort(
+    (left, right) => v4PriorityRank(right.priority) - v4PriorityRank(left.priority) || v4MetricSort(left.metricId) - v4MetricSort(right.metricId)
+  );
+  const primaryAnomaly = anomalies[0] ?? null;
+
+  return {
+    input,
+    derivedMetrics,
+    anomalies,
+    primaryAnomaly,
+    experimentCard: buildV4ExperimentCard(primaryAnomaly)
+  };
+}
+
 export function buildV2ActionPlan(dashboard: V2GoalDashboard): V2ActionPlan {
   const gapsForAction = dashboard.gaps.slice(0, 5);
   return {
@@ -854,6 +949,195 @@ function formatV2Effect(effect: V2BacktestResult["effect"]): string {
   if (effect === "effective") return "动作有效，可进入 SOP 验证";
   if (effect === "watch") return "有改善但证据不足，继续观察";
   return "未改善，应停止或换打法";
+}
+
+function safeDivide(numerator: number, denominator: number): number {
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) return 0;
+  return numerator / denominator;
+}
+
+function buildV4Anomalies(input: V4DailyFactInput, metrics: V4DerivedMetrics): V4Anomaly[] {
+  const anomalies: V4Anomaly[] = [];
+
+  if (input.grossMarginRate < 0.18) {
+    anomalies.push({
+      metricId: "gross_margin_rate",
+      metricLabel: "毛利率过低",
+      priority: "P0",
+      currentLabel: formatV4Percent(input.grossMarginRate),
+      targetLabel: ">= 18%",
+      hypothesis: "低价引流、定制报价或广告成本没有覆盖真实产品、包装、运费和售后成本",
+      experiment: "先核算主推 SKU 真实毛利，停止低毛利订单和低质投放。"
+    });
+  }
+
+  if (metrics.adSpendShare > 0.12) {
+    anomalies.push({
+      metricId: "ad_spend_share",
+      metricLabel: "广告费率过高",
+      priority: "P1",
+      currentLabel: formatV4Percent(metrics.adSpendShare),
+      targetLabel: "<= 12%",
+      hypothesis: "投放在用广告买曝光，但成交额或毛利没有同步承接",
+      experiment: "先降无效计划预算，只保留能带来询盘和支付的词、人群、商品。"
+    });
+  }
+
+  if (metrics.adExposureShare > 0.75) {
+    anomalies.push({
+      metricId: "ad_exposure_share",
+      metricLabel: "广告曝光依赖过高",
+      priority: "P1",
+      currentLabel: formatV4Percent(metrics.adExposureShare),
+      targetLabel: "<= 75%",
+      hypothesis: "自然曝光弱，标题、主图、商品层级和货盘承接不足",
+      experiment: "保留有效投放，同时重做 3 个主推 SKU 的标题、主图和定制场景。"
+    });
+  }
+
+  if (metrics.visitorInquiryRate < 0.05) {
+    anomalies.push({
+      metricId: "visitor_inquiry_rate",
+      metricLabel: "访客询盘率过低",
+      priority: "P1",
+      currentLabel: formatV4Percent(metrics.visitorInquiryRate),
+      targetLabel: ">= 5%",
+      hypothesis: "访客进店后没有看到清楚的保温杯定制、拿样、起订量和交期承诺",
+      experiment: "把主推商品的 MOQ、拿样、定制、开票、交期和阶梯价前置。"
+    });
+  }
+
+  if (metrics.inquiryPaymentRate < 0.12) {
+    anomalies.push({
+      metricId: "inquiry_payment_rate",
+      metricLabel: "询盘支付率过低",
+      priority: "P2",
+      currentLabel: formatV4Percent(metrics.inquiryPaymentRate),
+      targetLabel: ">= 12%",
+      hypothesis: "询盘没有被分层跟进，报价没有把用途、数量、预算和交期问清楚",
+      experiment: "客服按现货、拿样、LOGO 定制、礼品包装四类询盘改报价模板。"
+    });
+  }
+
+  if (metrics.exposureVisitorRate < 0.012) {
+    anomalies.push({
+      metricId: "exposure_visitor_rate",
+      metricLabel: "曝光访客率过低",
+      priority: "P2",
+      currentLabel: formatV4Percent(metrics.exposureVisitorRate),
+      targetLabel: ">= 1.2%",
+      hypothesis: "曝光词和主图吸引的人群不匹配，点击前承诺不够明确",
+      experiment: "按曝光最高的 5 个词检查主图、价格带、工厂标签和定制卖点。"
+    });
+  }
+
+  return anomalies;
+}
+
+function buildV4ExperimentCard(anomaly: V4Anomaly | null): V4ExperimentCard {
+  if (!anomaly) {
+    return {
+      id: "v4-exp-sop",
+      title: "固化今日有效动作",
+      targetMetricId: "visitor_inquiry_rate",
+      hypothesis: "当前每日链路没有明显异常，重点是把有效动作留成可复用 SOP",
+      action: "记录今日曝光、访客、询盘、支付和广告数据，把有效动作沉淀为明日检查清单。",
+      expectedChange: "连续 3 天保持核心转化稳定",
+      successCriteria: "关键转化不回落，并留下可复查截图和动作记录",
+      stopCondition: "任一核心转化跌破阈值，回到异常归因",
+      reviewCadence: "daily"
+    };
+  }
+
+  if (anomaly.metricId === "gross_margin_rate") {
+    return {
+      id: "v4-exp-margin",
+      title: "先修毛利，再放大流量",
+      targetMetricId: "gross_margin_rate",
+      hypothesis: anomaly.hypothesis,
+      action: "按 SKU 拆产品、包装、运费、样品、售后和广告成本，暂停低毛利订单来源。",
+      expectedChange: "7 天内毛利率回到 18% 以上",
+      successCriteria: "毛利回升，同时有效询盘和报价继续存在",
+      stopCondition: "调价后有效询盘断崖式下降，改查 SKU 定位、价格带和客户类型",
+      reviewCadence: "weekly"
+    };
+  }
+
+  if (anomaly.metricId === "ad_spend_share" || anomaly.metricId === "ad_exposure_share") {
+    return {
+      id: "v4-exp-ad-efficiency",
+      title: "压低广告依赖，保留有效询盘",
+      targetMetricId: anomaly.metricId,
+      hypothesis: anomaly.hypothesis,
+      action: "把投放按词、商品、询盘、支付拆开，只保留能带来有效询盘的计划。",
+      expectedChange: "3 天内广告费率回到 12% 以内，询盘不断崖",
+      successCriteria: "广告费率下降，单询盘广告成本同步下降",
+      stopCondition: "降预算后支付和有效询盘同步下滑，恢复有效计划并改查商品承接",
+      reviewCadence: "three_days"
+    };
+  }
+
+  if (anomaly.metricId === "visitor_inquiry_rate") {
+    return {
+      id: "v4-exp-visitor-inquiry",
+      title: "提升访客询盘率",
+      targetMetricId: "visitor_inquiry_rate",
+      hypothesis: anomaly.hypothesis,
+      action: "重做 3 个主推保温杯商品的首图、标题、MOQ、拿样、定制和交期表达。",
+      expectedChange: "3 天内访客询盘率回升到 5% 以上",
+      successCriteria: "询盘数提升，且低质量问价占比没有明显上升",
+      stopCondition: "访客询盘率无改善，改查流量词和商品价格带",
+      reviewCadence: "three_days"
+    };
+  }
+
+  if (anomaly.metricId === "inquiry_payment_rate") {
+    return {
+      id: "v4-exp-inquiry-payment",
+      title: "提升询盘到支付",
+      targetMetricId: "inquiry_payment_rate",
+      hypothesis: anomaly.hypothesis,
+      action: "客服先问用途、数量、预算、交期，再给三档方案和合约支付引导。",
+      expectedChange: "7 天内询盘支付率回到 12% 以上",
+      successCriteria: "支付数提升，未支付原因被完整归类",
+      stopCondition: "报价后继续沟通率不提升，改查客户类型和价格带",
+      reviewCadence: "weekly"
+    };
+  }
+
+  return {
+    id: "v4-exp-exposure-visitor",
+    title: "提升曝光到访客",
+    targetMetricId: "exposure_visitor_rate",
+    hypothesis: anomaly.hypothesis,
+    action: "检查曝光最高的 5 个词，把主图、价格带、工厂标签和定制卖点重新匹配。",
+    expectedChange: "3 天内曝光访客率回到 1.2% 以上",
+    successCriteria: "点击访客提升，访客询盘率不下降",
+    stopCondition: "点击提升但询盘下降，说明承诺吸引了错误客户，回调标题和主图",
+    reviewCadence: "three_days"
+  };
+}
+
+function formatV4Percent(value: number): string {
+  return `${Number((value * 100).toFixed(1))}%`;
+}
+
+function v4PriorityRank(priority: V4Anomaly["priority"]): number {
+  if (priority === "P0") return 3;
+  if (priority === "P1") return 2;
+  return 1;
+}
+
+function v4MetricSort(metricId: V4MetricId): number {
+  const sort: Record<V4MetricId, number> = {
+    gross_margin_rate: 10,
+    ad_spend_share: 20,
+    ad_exposure_share: 30,
+    visitor_inquiry_rate: 40,
+    inquiry_payment_rate: 50,
+    exposure_visitor_rate: 60
+  };
+  return sort[metricId];
 }
 
 function buildV3PriorityDecision(

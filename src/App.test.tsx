@@ -13,6 +13,7 @@ describe("1688 operations assistant UI", () => {
     expect(screen.getByRole("button", { name: "目标差距" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "路径拆解" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "经营推理" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "每日经营" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "SKU 组合" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "员工能力" })).toBeInTheDocument();
 
@@ -67,5 +68,41 @@ describe("1688 operations assistant UI", () => {
 
     expect(screen.getByText("员工仍偏任务执行，需要训练归因、停止和 SOP。")).toBeInTheDocument();
     expect(screen.getByText("本周至少沉淀 1 条有效动作 SOP")).toBeInTheDocument();
+  });
+
+  it("shows V4 daily operating facts and calculated ratios", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "每日经营" }));
+
+    expect(screen.getByRole("heading", { name: "每日经营事实表" })).toBeInTheDocument();
+    expect(screen.getByLabelText("总曝光")).toBeInTheDocument();
+    expect(screen.getByLabelText("广告曝光")).toBeInTheDocument();
+    expect(screen.getByLabelText("自然曝光")).toBeInTheDocument();
+    expect(screen.getByLabelText("广告消耗")).toBeInTheDocument();
+    expect(screen.getByLabelText("访客")).toBeInTheDocument();
+    expect(screen.getByLabelText("询盘")).toBeInTheDocument();
+    expect(screen.getByLabelText("支付金额")).toBeInTheDocument();
+    expect(screen.getByLabelText("毛利率")).toBeInTheDocument();
+    expect(screen.getByText("广告费率")).toBeInTheDocument();
+    expect(screen.getByText("14.6%")).toBeInTheDocument();
+  });
+
+  it("updates V4 anomaly judgment after editing daily facts", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "每日经营" }));
+    await user.clear(screen.getByLabelText("毛利率"));
+    await user.type(screen.getByLabelText("毛利率"), "22");
+    await user.clear(screen.getByLabelText("广告消耗"));
+    await user.type(screen.getByLabelText("广告消耗"), "260");
+    await user.clear(screen.getByLabelText("支付金额"));
+    await user.type(screen.getByLabelText("支付金额"), "1000");
+
+    expect(screen.getByText("广告费率过高")).toBeInTheDocument();
+    expect(screen.getByText("异常实验卡")).toBeInTheDocument();
+    expect(screen.getByText("停止条件")).toBeInTheDocument();
   });
 });

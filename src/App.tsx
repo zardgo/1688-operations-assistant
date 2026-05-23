@@ -17,17 +17,19 @@ import {
   buildV2ActionPlan,
   buildV2GoalDashboard,
   buildV3OperatingReview,
+  buildV4DailyOperatingReview,
   type V2Action,
   type V2BacktestResult,
   type V2GoalId,
   type V2MetricId,
   type V2MetricReadingInput,
   type V3CapabilitySnapshot,
-  type V3SkuFact
+  type V3SkuFact,
+  type V4DailyFactInput
 } from "./lib/operations";
 import "./styles.css";
 
-type Page = "entry" | "gaps" | "path" | "backtest" | "reasoning" | "sku" | "capability";
+type Page = "entry" | "daily" | "gaps" | "path" | "backtest" | "reasoning" | "sku" | "capability";
 
 type EditableMetric = {
   id: V2MetricId;
@@ -39,6 +41,7 @@ type EditableMetric = {
 
 const pageLabels: Record<Page, string> = {
   entry: "数据录入",
+  daily: "每日经营",
   gaps: "目标差距",
   path: "路径拆解",
   backtest: "动作回测",
@@ -107,6 +110,43 @@ const editableMetrics: EditableMetric[] = [
   }
 ];
 
+type DailyField = {
+  id: keyof V4DailyFactInput;
+  label: string;
+  helper: string;
+  unit: "次" | "元" | "%";
+};
+
+const dailyFields: DailyField[] = [
+  { id: "totalExposure", label: "总曝光", helper: "每日从生意参谋或店铺统计录入", unit: "次" },
+  { id: "adExposure", label: "广告曝光", helper: "站内投放带来的曝光", unit: "次" },
+  { id: "naturalExposure", label: "自然曝光", helper: "总曝光减广告曝光，也可手动录入", unit: "次" },
+  { id: "adSpend", label: "广告消耗", helper: "当日广告实际消耗", unit: "元" },
+  { id: "visitors", label: "访客", helper: "进入店铺或商品详情的访客", unit: "次" },
+  { id: "inquiries", label: "询盘", helper: "旺旺、找工厂等有效咨询", unit: "次" },
+  { id: "payments", label: "支付", helper: "当日支付订单数", unit: "次" },
+  { id: "paymentAmount", label: "支付金额", helper: "当日支付成交额", unit: "元" },
+  { id: "grossMarginRate", label: "毛利率", helper: "按真实成本估算，当天无精确值时用主推款毛利", unit: "%" }
+];
+
+const initialDailyFacts: V4DailyFactInput = {
+  date: "2026-04-11",
+  totalExposure: 6641,
+  adExposure: 6399,
+  naturalExposure: 242,
+  adSpend: 146,
+  visitors: 84,
+  inquiries: 6,
+  payments: 1,
+  paymentAmount: 1000,
+  grossMarginRate: 0.16,
+  storeLayerRank: "第一层级735名",
+  spotProductCount: 37,
+  potentialProductCount: 5,
+  crownProductCount: 1,
+  replenishmentBuyerCount: 0
+};
+
 const initialValues: Record<V2MetricId, number> = {
   ww_3min_response_rate: 0.52,
   factory_service_response_rate_30d: 0.55,
@@ -167,6 +207,7 @@ export default function App() {
   const [page, setPage] = useState<Page>("entry");
   const [goalId, setGoalId] = useState<V2GoalId>("factory_bronze");
   const [values, setValues] = useState(initialValues);
+  const [dailyFacts, setDailyFacts] = useState<V4DailyFactInput>(initialDailyFacts);
   const [backtestAfter, setBacktestAfter] = useState("62");
   const [backtestResult, setBacktestResult] = useState<V2BacktestResult | null>(null);
 
@@ -191,6 +232,7 @@ export default function App() {
       }),
     [goalId, readings]
   );
+  const v4Review = useMemo(() => buildV4DailyOperatingReview(dailyFacts), [dailyFacts]);
   const firstAction = actionPlan.actions[0] ?? null;
 
   function updateMetric(metric: EditableMetric, rawValue: string) {
@@ -209,11 +251,19 @@ export default function App() {
     setBacktestResult(backtestV2Action(action, values[action.targetMetricId], normalizedAfter));
   }
 
+  function updateDailyFact(field: DailyField, rawValue: string) {
+    const numericValue = Number(rawValue);
+    setDailyFacts((current) => ({
+      ...current,
+      [field.id]: field.unit === "%" ? numericValue / 100 : numericValue
+    }));
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar v2-topbar">
         <div>
-          <p className="eyebrow">保温杯 / 经营推理 / V3</p>
+          <p className="eyebrow">保温杯 / 每日经营 / V4</p>
           <h1>1688 运营助手</h1>
         </div>
         <label className="scenario-picker">
@@ -228,7 +278,7 @@ export default function App() {
         </label>
       </header>
 
-      <nav className="mode-tabs v2-tabs" aria-label="V3 页面">
+      <nav className="mode-tabs v2-tabs" aria-label="V4 页面">
         {(Object.keys(pageLabels) as Page[]).map((key) => (
           <button className={page === key ? "active" : ""} key={key} type="button" onClick={() => setPage(key)}>
             {pageLabels[key]}
@@ -244,7 +294,7 @@ export default function App() {
           <small>{dashboard.summary}</small>
         </div>
         <div className="risk-explain">
-          <p>V3 不只看官方指标，还会同时裁决经营健康和员工能力，避免为了冲平台目标把利润和判断力打没。</p>
+          <p>V4 把每日数据接进经营推理：先看官方目标，再看流量、询盘、支付、广告和毛利之间有没有断点。</p>
           <div className="flow-line">
             {v3Review.goalLayers.map((layer) => (
               <span key={layer.id}>{layer.label}</span>
@@ -293,6 +343,102 @@ export default function App() {
               <p><strong>每日</strong> 响应率、履约率、积分、合约支付。</p>
               <p><strong>每周</strong> 毛利、售后归因、有效动作。</p>
               <p><strong>每月</strong> 小单定制动销商品数和牌级进度。</p>
+            </div>
+          </aside>
+        </section>
+      )}
+
+      {page === "daily" && (
+        <section className="page-grid daily-grid">
+          <div className="panel task-panel">
+            <div className="section-title">
+              <BarChart3 aria-hidden="true" />
+              <h2>每日经营事实表</h2>
+            </div>
+            <div className="entry-list daily-entry-list">
+              {dailyFields.map((field) => (
+                <label className="metric-input-row" key={field.id}>
+                  <span>
+                    <strong>{field.label}</strong>
+                    <small>{field.helper}</small>
+                  </span>
+                  <div>
+                    <input
+                      aria-label={field.label}
+                      inputMode="decimal"
+                      type="number"
+                      value={formatDailyInputValue(Number(dailyFacts[field.id] ?? 0), field.unit)}
+                      onChange={(event) => updateDailyFact(field, event.target.value)}
+                    />
+                    <em>{field.unit}</em>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="section-title stacked-title">
+              <Activity aria-hidden="true" />
+              <h2>自动计算</h2>
+            </div>
+            <div className="daily-metric-grid">
+              <DailyMetric label="自然曝光占比" value={formatPercent(v4Review.derivedMetrics.naturalExposureShare)} />
+              <DailyMetric label="广告曝光占比" value={formatPercent(v4Review.derivedMetrics.adExposureShare)} />
+              <DailyMetric label="曝光访客率" value={formatPercent(v4Review.derivedMetrics.exposureVisitorRate)} />
+              <DailyMetric label="访客询盘率" value={formatPercent(v4Review.derivedMetrics.visitorInquiryRate)} />
+              <DailyMetric label="询盘支付率" value={formatPercent(v4Review.derivedMetrics.inquiryPaymentRate)} />
+              <DailyMetric label="单询盘广告成本" value={formatMoney(v4Review.derivedMetrics.adCostPerInquiry)} />
+              <DailyMetric label="单支付广告成本" value={formatMoney(v4Review.derivedMetrics.adCostPerPayment)} />
+              <DailyMetric label="客单价" value={formatMoney(v4Review.derivedMetrics.paymentAverageOrderValue)} />
+              <DailyMetric label="广告费率" value={formatPercent(v4Review.derivedMetrics.adSpendShare)} />
+            </div>
+          </div>
+
+          <aside className="panel method-panel">
+            <div className="section-title">
+              <Target aria-hidden="true" />
+              <h2>异常归因</h2>
+            </div>
+            {v4Review.primaryAnomaly ? (
+              <article className={`decision-card daily-anomaly ${v4Review.primaryAnomaly.priority.toLowerCase()}`}>
+                <span>{v4Review.primaryAnomaly.priority}</span>
+                <strong>{v4Review.primaryAnomaly.metricLabel}</strong>
+                <p>{v4Review.primaryAnomaly.currentLabel} / 目标 {v4Review.primaryAnomaly.targetLabel}</p>
+                <small>{v4Review.primaryAnomaly.hypothesis}</small>
+              </article>
+            ) : (
+              <p className="empty-copy">今日核心链路未触发异常阈值，适合沉淀动作和继续观察。</p>
+            )}
+
+            <div className="section-title stacked-title">
+              <CheckCircle2 aria-hidden="true" />
+              <h2>异常实验卡</h2>
+            </div>
+            <article className="experiment-card">
+              <span>{formatReviewCadence(v4Review.experimentCard.reviewCadence)}</span>
+              <strong>{v4Review.experimentCard.title}</strong>
+              <p>{v4Review.experimentCard.hypothesis}</p>
+              <dl>
+                <dt>动作</dt>
+                <dd>{v4Review.experimentCard.action}</dd>
+                <dt>预期</dt>
+                <dd>{v4Review.experimentCard.expectedChange}</dd>
+                <dt>成功</dt>
+                <dd>{v4Review.experimentCard.successCriteria}</dd>
+                <dt>停止条件</dt>
+                <dd>{v4Review.experimentCard.stopCondition}</dd>
+              </dl>
+            </article>
+
+            <div className="section-title stacked-title">
+              <Factory aria-hidden="true" />
+              <h2>官方侧栏</h2>
+            </div>
+            <div className="official-list">
+              <p><strong>店铺层级</strong>{dailyFacts.storeLayerRank}</p>
+              <p><strong>现货商品数</strong>{dailyFacts.spotProductCount} 款</p>
+              <p><strong>潜力品数</strong>{dailyFacts.potentialProductCount} 款</p>
+              <p><strong>金冠品数</strong>{dailyFacts.crownProductCount} 款</p>
+              <p><strong>补单买家数</strong>{dailyFacts.replenishmentBuyerCount} 人</p>
             </div>
           </aside>
         </section>
@@ -567,9 +713,37 @@ export default function App() {
   );
 }
 
+function DailyMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <article className="daily-metric-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
+  );
+}
+
 function formatInputValue(value: number, unit: EditableMetric["unit"]): string {
   if (unit === "%") return String(Math.round(value * 100));
   return String(value);
+}
+
+function formatDailyInputValue(value: number, unit: DailyField["unit"]): string {
+  if (unit === "%") return String(Math.round(value * 100));
+  return String(value);
+}
+
+function formatPercent(value: number): string {
+  return `${Number((value * 100).toFixed(1))}%`;
+}
+
+function formatMoney(value: number): string {
+  return `¥${Number(value.toFixed(1)).toLocaleString("zh-CN")}`;
+}
+
+function formatReviewCadence(cadence: "daily" | "three_days" | "weekly"): string {
+  if (cadence === "daily") return "每日";
+  if (cadence === "three_days") return "3 天";
+  return "每周";
 }
 
 function formatSopState(state: V2Action["sopState"]): string {
