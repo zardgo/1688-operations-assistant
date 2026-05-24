@@ -7,11 +7,13 @@ import {
   buildV3OperatingReview,
   buildV2ActionPlan,
   buildV2GoalDashboard,
+  buildV8CommandCenter,
+  adoptRuleVersion,
   bindRuleVersionToGoal,
   buildKeywordMatrix,
-  confirmRuleVersion,
   createDraftRuleVersion,
-  getConfirmedRuleVersionsForGoal,
+  buildSetupChecklist,
+  getActiveRuleVersionsForGoal,
   getRuleVersionsForGoal,
   createActionQueue,
   createMvpWeeklyReview,
@@ -172,10 +174,10 @@ describe("1688 operations engine", () => {
       targetLabel: "60%"
     });
     expect(dashboard.ruleVersions.map((rule) => rule.name)).toContain("找工厂铜牌规则");
-    expect(dashboard.ruleVersions.every((rule) => rule.manuallyConfirmed)).toBe(false);
+    expect(dashboard.ruleVersions.every((rule) => rule.sourceConfidence !== undefined)).toBe(true);
   });
 
-  it("keeps official target rules as versioned records with confirmation metadata", () => {
+  it("keeps official target rules as versioned records with source confidence", () => {
     const rules = getRuleVersionsForGoal("factory_bronze");
 
     expect(rules).toEqual(
@@ -186,17 +188,16 @@ describe("1688 operations engine", () => {
           publishedAt: "2026-05-01",
           sourceUrl: expect.stringContaining("1688.com"),
           scope: "保温杯 / 找工厂 / 铜牌升级",
-          status: "draft",
-          manuallyConfirmed: false,
-          confirmedBy: null,
-          confirmedAt: null,
+          status: "source_found",
+          sourceConfidence: "medium",
+          lastReviewedAt: "2026-05-24",
           appliesToGoalIds: expect.arrayContaining(["factory_bronze"])
         })
       ])
     );
   });
 
-  it("creates a draft rule version that is not usable by employees until confirmed", () => {
+  it("creates a source-found rule version that can guide actions without artificial confirmation", () => {
     const draft = createDraftRuleVersion({
       name: "找工厂铜牌 2026-06 更新",
       publishedAt: "2026-06-01",
@@ -207,15 +208,13 @@ describe("1688 operations engine", () => {
 
     expect(draft).toMatchObject({
       id: "factory-bronze-2026-06-01",
-      status: "draft",
-      manuallyConfirmed: false,
-      confirmedBy: null,
-      confirmedAt: null,
+      status: "source_found",
+      sourceConfidence: "low",
       appliesToGoalIds: ["factory_bronze"]
     });
   });
 
-  it("confirms a rule version and exposes only confirmed rules as employee basis", () => {
+  it("adopts a rule version without turning source confidence into an employee blocker", () => {
     const draft = createDraftRuleVersion({
       name: "找工厂铜牌 2026-06 更新",
       publishedAt: "2026-06-01",
@@ -225,17 +224,32 @@ describe("1688 operations engine", () => {
     });
     const rules = getRuleVersionsForGoal("factory_bronze").concat(draft);
 
-    expect(getConfirmedRuleVersionsForGoal("factory_bronze", rules).map((rule) => rule.id)).not.toContain(draft.id);
+    expect(getActiveRuleVersionsForGoal("factory_bronze", rules).map((rule) => rule.id)).not.toContain(draft.id);
 
-    const confirmedRules = confirmRuleVersion(rules, draft.id, "Leon", "2026-06-02");
+    const activeRules = adoptRuleVersion(rules, draft.id, "2026-06-02");
 
-    expect(confirmedRules.find((rule) => rule.id === draft.id)).toMatchObject({
+    expect(activeRules.find((rule) => rule.id === draft.id)).toMatchObject({
       status: "active",
-      manuallyConfirmed: true,
-      confirmedBy: "Leon",
-      confirmedAt: "2026-06-02"
+      sourceConfidence: "medium",
+      lastReviewedAt: "2026-06-02"
     });
-    expect(getConfirmedRuleVersionsForGoal("factory_bronze", confirmedRules).map((rule) => rule.id)).toContain(draft.id);
+    expect(getActiveRuleVersionsForGoal("factory_bronze", activeRules).map((rule) => rule.id)).toContain(draft.id);
+  });
+
+  it("does not block a ready V8 goal just because the rule source is not adopted yet", () => {
+    const dashboard = buildV2GoalDashboard("factory_bronze", [
+      { id: "ww_3min_response_rate", value: 0.62, period: "2026-05-23" },
+      { id: "factory_service_response_rate_30d", value: 0.62, period: "2026-05-23" },
+      { id: "factory_fulfillment_rate_30d", value: 0.8, period: "2026-05-23" },
+      { id: "monthly_active_small_custom_sku_count", value: 4, period: "2026-05" },
+      { id: "custom_trade_points_30d", value: 120000, period: "2026-05-23" },
+      { id: "contract_payment_rate", value: 0.75, period: "2026-05-23" }
+    ]);
+    const command = buildV8CommandCenter(dashboard, buildV2ActionPlan(dashboard), []);
+
+    expect(command.qualification.status).toBe("ready");
+    expect(command.ruleBasis.label).toBe("来源待补");
+    expect(command.qualification.reason).not.toContain("人工确认");
   });
 
   it("binds a rule version to a new goal without removing existing scope", () => {
@@ -264,6 +278,139 @@ describe("1688 operations engine", () => {
       sopState: "candidate"
     });
     expect(actionPlan.actions[0].evidence).toContain("当日旺旺 3 分钟响应率截图");
+  });
+
+  it("builds a V8 command center that blocks a goal and gives the employee today actions", () => {
+    const dashboard = buildV2GoalDashboard("factory_bronze", [
+      { id: "ww_3min_response_rate", value: 0.52, period: "2026-05-23" },
+      { id: "factory_service_response_rate_30d", value: 0.55, period: "2026-05-23" },
+      { id: "factory_fulfillment_rate_30d", value: 0.68, period: "2026-05-23" },
+      { id: "monthly_active_small_custom_sku_count", value: 1, period: "2026-05" }
+    ]);
+    const actionPlan = buildV2ActionPlan(dashboard);
+
+    const command = buildV8CommandCenter(dashboard, actionPlan, []);
+
+    expect(command.goalLabel).toBe("冲找工厂铜牌");
+    expect(command.qualification.status).toBe("blocked");
+    expect(command.qualification.label).toBe("暂不可冲");
+    expect(command.primaryBlocker?.metricLabel).toBe("旺旺 3 分钟响应率");
+    expect(command.todayActions.map((action) => action.title)).toEqual([
+      "补齐 09:00-21:00 首响值班和快捷回复",
+      "追踪找工厂近 30 天未响应咨询"
+    ]);
+    expect(command.tomorrowCheck).toMatchObject({
+      metricLabel: "旺旺 3 分钟响应率",
+      targetLabel: "60%",
+      question: "明天验证：旺旺 3 分钟响应率是否从 52% 回升到 60% 以上。"
+    });
+    expect(command.ruleBasis.label).toBe("来源待补");
+    expect(command.employeeInstruction).toContain("今天只处理 2 件事");
+  });
+
+  it("turns a V8 command center into a low-friction daily mission", () => {
+    const dashboard = buildV2GoalDashboard("factory_bronze", [
+      { id: "ww_3min_response_rate", value: 0.52, period: "2026-05-23" },
+      { id: "factory_service_response_rate_30d", value: 0.55, period: "2026-05-23" },
+      { id: "monthly_active_small_custom_sku_count", value: 1, period: "2026-05" }
+    ]);
+    const command = buildV8CommandCenter(dashboard, buildV2ActionPlan(dashboard), []);
+
+    expect(command.mission).toMatchObject({
+      status: "pending",
+      completionMode: "checklist",
+      goal: {
+        title: "修复旺旺 3 分钟响应率",
+        metricLabel: "旺旺 3 分钟响应率",
+        currentLabel: "52%",
+        targetLabel: "60%"
+      },
+      yesterdayReview: {
+        label: "待复盘",
+        decision: "等明天数据验证，不要求员工上传证据。"
+      }
+    });
+    expect(command.mission.actions[0]).toMatchObject({
+      owner: "客服员工",
+      dueTime: "18:00",
+      checkLabel: "完成：补齐 09:00-21:00 首响值班和快捷回复",
+      targetMetricLabel: "旺旺 3 分钟响应率"
+    });
+    expect(command.mission.tomorrowChecks[0].question).toContain("明天验证：旺旺 3 分钟响应率");
+  });
+
+  it("marks a V8 goal ready when metrics pass and adopted rules exist", () => {
+    const activeRules = adoptRuleVersion(
+      getRuleVersionsForGoal("factory_bronze"),
+      "factory-bronze-2026-05-draft",
+      "2026-05-23"
+    );
+    const dashboard = buildV2GoalDashboard("factory_bronze", [
+      { id: "ww_3min_response_rate", value: 0.62, period: "2026-05-23" },
+      { id: "factory_service_response_rate_30d", value: 0.62, period: "2026-05-23" },
+      { id: "factory_fulfillment_rate_30d", value: 0.8, period: "2026-05-23" },
+      { id: "monthly_active_small_custom_sku_count", value: 4, period: "2026-05" },
+      { id: "custom_trade_points_30d", value: 120000, period: "2026-05-23" },
+      { id: "contract_payment_rate", value: 0.75, period: "2026-05-23" }
+    ], activeRules);
+    const command = buildV8CommandCenter(
+      dashboard,
+      buildV2ActionPlan(dashboard),
+      getActiveRuleVersionsForGoal("factory_bronze", activeRules)
+    );
+
+    expect(command.qualification.status).toBe("ready");
+    expect(command.qualification.label).toBe("可以冲刺");
+    expect(command.primaryBlocker).toBeNull();
+    expect(command.todayActions[0].title).toBe("进入周复盘并固化 SOP");
+    expect(command.ruleBasis.label).toBe("规则已采用");
+  });
+
+  it("adds action frequency and keeps completed buyer protection out of daily setup tasks", () => {
+    const dashboard = buildV2GoalDashboard("factory_bronze", [
+      { id: "ww_3min_response_rate", value: 0.52, period: "2026-05-23" }
+    ]);
+    const actionPlan = buildV2ActionPlan(dashboard);
+
+    expect(actionPlan.actions[0]).toMatchObject({
+      frequency: "daily_operation"
+    });
+
+    expect(
+      buildSetupChecklist({
+        buyerProtectionEnabled: true,
+        hasNewProducts: false,
+        buyerProtectionBreachCount: 0,
+        isMonthlyReviewDue: false
+      })
+    ).toEqual([]);
+
+    expect(
+      buildSetupChecklist({
+        buyerProtectionEnabled: true,
+        hasNewProducts: true,
+        buyerProtectionBreachCount: 0,
+        isMonthlyReviewDue: false
+      })[0]
+    ).toMatchObject({
+      title: "检查新增商品买家保障配置",
+      frequency: "exception_triggered"
+    });
+  });
+
+  it("uses the new lighthouse page as service score data source", () => {
+    const dashboard = buildV2GoalDashboard("lighthouse_repair", [
+      { id: "lighthouse_score", value: 88, period: "2026-05-24" },
+      { id: "store_service_star_level", value: 4, period: "2026-05-24" }
+    ]);
+
+    expect(dashboard.readings.map((reading) => reading.id)).toEqual([
+      "lighthouse_score",
+      "store_service_star_level"
+    ]);
+    expect(dashboard.readings[0].source).toContain("new-lighthouse-ai");
+    expect(dashboard.readings[0].currentLabel).toBe("88分");
+    expect(dashboard.readings[1].currentLabel).toBe("4星");
   });
 
   it("backtests V2 actions and only promotes SOP after the target metric improves", () => {

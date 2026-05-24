@@ -150,6 +150,12 @@ export type V2MetricId =
   | "ww_3min_response_rate"
   | "factory_service_response_rate_30d"
   | "pickup_48h_rate_30d"
+  | "lighthouse_score"
+  | "store_service_star_level"
+  | "lighthouse_logistics_score"
+  | "lighthouse_after_sales_score"
+  | "lighthouse_consult_score"
+  | "lighthouse_product_score"
   | "factory_fulfillment_rate_30d"
   | "monthly_active_small_custom_sku_count"
   | "custom_trade_points_30d"
@@ -202,10 +208,10 @@ export type RuleVersion = {
   publishedAt: string;
   sourceUrl: string;
   scope: string;
-  status: "draft" | "active" | "superseded";
-  manuallyConfirmed: boolean;
-  confirmedBy: string | null;
-  confirmedAt: string | null;
+  status: "draft" | "source_found" | "active" | "deprecated";
+  sourceConfidence: "low" | "medium" | "high";
+  lastReviewedAt: string | null;
+  reviewNotes: string;
   appliesToGoalIds: V2GoalId[];
 };
 
@@ -225,10 +231,33 @@ export type V2Action = {
   priority: MvpRisk["priority"];
   targetMetricId: V2MetricId;
   cadence: V2Cadence;
+  frequency: ActionFrequency;
   method: string;
   evidence: string[];
   reviewQuestion: string;
   sopState: "candidate" | "validated" | "stopped";
+};
+
+export type ActionFrequency =
+  | "one_time_setup"
+  | "periodic_check"
+  | "daily_operation"
+  | "exception_triggered"
+  | "experiment";
+
+export type SetupChecklistInput = {
+  buyerProtectionEnabled: boolean;
+  hasNewProducts: boolean;
+  buyerProtectionBreachCount: number;
+  isMonthlyReviewDue: boolean;
+};
+
+export type SetupChecklistItem = {
+  id: string;
+  title: string;
+  frequency: ActionFrequency;
+  checkLabel: string;
+  reviewMetricIds: string[];
 };
 
 export type V2ActionPlan = {
@@ -475,6 +504,71 @@ export type V5OperatingLoop = {
   checklist: V5ChecklistItem[];
 };
 
+export type V8Qualification = {
+  status: "blocked" | "ready";
+  label: "暂不可冲" | "可以冲刺";
+  reason: string;
+};
+
+export type V8RuleBasis = {
+  status: "source_found" | "active";
+  label: "来源待补" | "规则已采用";
+  detail: string;
+};
+
+export type V8TomorrowCheck = {
+  metricId: V2MetricId | null;
+  metricLabel: string;
+  currentLabel: string;
+  targetLabel: string;
+  question: string;
+};
+
+export type V8MissionAction = {
+  id: string;
+  title: string;
+  priority: MvpRisk["priority"];
+  owner: "运营员工" | "客服员工" | "负责人";
+  dueTime: string;
+  checkLabel: string;
+  targetMetricLabel: string;
+  expectedImpact: string;
+  method: string;
+  notePrompt: string;
+};
+
+export type V8DailyMission = {
+  status: "pending" | "doing" | "waiting_review" | "reviewed";
+  completionMode: "checklist";
+  stage: "data_missing" | "service_fixing" | "factory_level_sprint" | "growth_scaling" | "sop_review";
+  goal: {
+    title: string;
+    metricLabel: string;
+    currentLabel: string;
+    targetLabel: string;
+    priorityReason: string;
+  };
+  actions: V8MissionAction[];
+  tomorrowChecks: V8TomorrowCheck[];
+  yesterdayReview: {
+    label: "待复盘" | "有效" | "需调整";
+    summary: string;
+    decision: string;
+  };
+};
+
+export type V8CommandCenter = {
+  goalId: V2GoalId;
+  goalLabel: string;
+  qualification: V8Qualification;
+  ruleBasis: V8RuleBasis;
+  primaryBlocker: V2MetricGap | null;
+  todayActions: V2Action[];
+  tomorrowCheck: V8TomorrowCheck;
+  mission: V8DailyMission;
+  employeeInstruction: string;
+};
+
 type MetricRule = {
   metric: keyof WeeklyMetrics;
   label: string;
@@ -490,7 +584,7 @@ type V2MetricDefinition = {
   label: string;
   cadence: V2Cadence;
   source: string;
-  format: "percent" | "count" | "points";
+  format: "percent" | "count" | "points" | "score" | "stars";
   direction: "min" | "max";
   priority: MvpRisk["priority"];
   sort: number;
@@ -513,6 +607,9 @@ const v2GoalLabels: Record<V2GoalId, string> = {
   lighthouse_repair: "修复新灯塔短板"
 };
 
+const newLighthouseAiSource =
+  "新灯塔 AI 页面：https://work.1688.com/home/page/index.htm?spm=a2638g.u_f2e83.brief.6.1b031768rJFSuU&_path_=sellerPro/lvyue/new-lighthouse-ai";
+
 const ruleVersions: RuleVersion[] = [
   {
     id: "factory-bronze-2026-05-draft",
@@ -520,10 +617,10 @@ const ruleVersions: RuleVersion[] = [
     publishedAt: "2026-05-01",
     sourceUrl: "https://factory.1688.com/rules/factory-level",
     scope: "保温杯 / 找工厂 / 铜牌升级",
-    status: "draft",
-    manuallyConfirmed: false,
-    confirmedBy: null,
-    confirmedAt: null,
+    status: "source_found",
+    sourceConfidence: "medium",
+    lastReviewedAt: "2026-05-24",
+    reviewNotes: "规则来源已记录，后台当前口径可覆盖。",
     appliesToGoalIds: ["factory_bronze"]
   },
   {
@@ -532,10 +629,10 @@ const ruleVersions: RuleVersion[] = [
     publishedAt: "2026-05-01",
     sourceUrl: "https://factory.1688.com/rules/factory-level",
     scope: "保温杯 / 找工厂 / 银牌升级",
-    status: "draft",
-    manuallyConfirmed: false,
-    confirmedBy: null,
-    confirmedAt: null,
+    status: "source_found",
+    sourceConfidence: "medium",
+    lastReviewedAt: "2026-05-24",
+    reviewNotes: "规则来源已记录，后台当前口径可覆盖。",
     appliesToGoalIds: ["factory_silver"]
   },
   {
@@ -544,10 +641,10 @@ const ruleVersions: RuleVersion[] = [
     publishedAt: "2026-05-01",
     sourceUrl: "https://factory.1688.com/rules/factory-level",
     scope: "保温杯 / 找工厂 / 金牌升级",
-    status: "draft",
-    manuallyConfirmed: false,
-    confirmedBy: null,
-    confirmedAt: null,
+    status: "source_found",
+    sourceConfidence: "medium",
+    lastReviewedAt: "2026-05-24",
+    reviewNotes: "规则来源已记录，后台当前口径可覆盖。",
     appliesToGoalIds: ["factory_gold"]
   },
   {
@@ -556,10 +653,10 @@ const ruleVersions: RuleVersion[] = [
     publishedAt: "2026-05-01",
     sourceUrl: "https://rule.1688.com/rule/detail",
     scope: "保温杯 / 服务体验 / 响应与履约",
-    status: "draft",
-    manuallyConfirmed: false,
-    confirmedBy: null,
-    confirmedAt: null,
+    status: "source_found",
+    sourceConfidence: "medium",
+    lastReviewedAt: "2026-05-24",
+    reviewNotes: "服务体验规则来源已记录，细项以后以新灯塔页面和后台口径覆盖。",
     appliesToGoalIds: ["protect_service", "factory_bronze", "factory_silver", "factory_gold", "l_growth", "lighthouse_repair"]
   },
   {
@@ -568,10 +665,10 @@ const ruleVersions: RuleVersion[] = [
     publishedAt: "2026-05-01",
     sourceUrl: "https://work.1688.com/rule/l-level",
     scope: "保温杯 / 店铺成长 / L 等级",
-    status: "draft",
-    manuallyConfirmed: false,
-    confirmedBy: null,
-    confirmedAt: null,
+    status: "source_found",
+    sourceConfidence: "low",
+    lastReviewedAt: "2026-05-24",
+    reviewNotes: "用户提供结构化说明，缺后台当前口径。",
     appliesToGoalIds: ["l_growth"]
   }
 ];
@@ -709,6 +806,114 @@ const v2MetricDefinitions: V2MetricDefinition[] = [
     method: "按缺货、待确认、物流异常、承诺错误拆分风险订单，并补当天处理记录。",
     evidence: ["风险订单清单", "已处理订单数", "未处理原因"],
     reviewQuestion: "揽收问题来自库存、承诺、打单，还是物流配合？"
+  },
+  {
+    id: "lighthouse_score",
+    label: "新灯塔总分",
+    cadence: "weekly",
+    source: newLighthouseAiSource,
+    format: "score",
+    direction: "min",
+    priority: "P0",
+    sort: 72,
+    whyItMatters: "新灯塔总分是服务履约趋势入口，下降时要拆物流、售后、咨询和商品体验。",
+    targets: { protect_service: 90, lighthouse_repair: 90, l_growth: 90 },
+    pathTitle: "先定位新灯塔最低分维度",
+    checkpoint: "每周录入总分、服务星级和最低分维度。",
+    actionTitle: "录入新灯塔总分并标记最低分维度",
+    method: "打开新灯塔 AI 页面，记录总分、店铺服务星级、物流/售后/咨询/商品体验四个分项，先处理最低分维度。",
+    evidence: ["新灯塔 AI 页面截图", "最低分维度记录"],
+    reviewQuestion: "本周新灯塔下降主要来自物流、售后、咨询还是商品体验？"
+  },
+  {
+    id: "store_service_star_level",
+    label: "店铺服务星级",
+    cadence: "weekly",
+    source: newLighthouseAiSource,
+    format: "stars",
+    direction: "min",
+    priority: "P0",
+    sort: 73,
+    whyItMatters: "店铺服务星级影响买家信任和平台服务权益，是服务履约的高层结果。",
+    targets: { protect_service: 4.5, lighthouse_repair: 4.5, l_growth: 4.5 },
+    pathTitle: "保住店铺服务星级",
+    checkpoint: "每周记录服务星级变化和拖分维度。",
+    actionTitle: "记录店铺服务星级并拆拖分项",
+    method: "在新灯塔 AI 页面记录店铺服务星级，若下降则拆到物流、售后、咨询、商品体验。",
+    evidence: ["店铺服务星级截图", "拖分维度记录"],
+    reviewQuestion: "星级变化是否由可控服务动作导致？"
+  },
+  {
+    id: "lighthouse_logistics_score",
+    label: "新灯塔物流体验分",
+    cadence: "weekly",
+    source: newLighthouseAiSource,
+    format: "score",
+    direction: "min",
+    priority: "P0",
+    sort: 74,
+    whyItMatters: "物流体验下降会影响服务分、活动承接和复购体验。",
+    targets: { protect_service: 90, lighthouse_repair: 90, l_growth: 90 },
+    pathTitle: "修复物流体验短板",
+    checkpoint: "每周看物流体验分和 48 小时揽收风险订单。",
+    actionTitle: "排查物流体验最低项",
+    method: "按揽收、物流时效、发货物流退款拆分问题订单，先处理可控订单。",
+    evidence: ["物流体验分截图", "物流异常订单清单"],
+    reviewQuestion: "物流体验问题来自库存、承诺还是物流商？"
+  },
+  {
+    id: "lighthouse_after_sales_score",
+    label: "新灯塔售后体验分",
+    cadence: "weekly",
+    source: newLighthouseAiSource,
+    format: "score",
+    direction: "min",
+    priority: "P0",
+    sort: 75,
+    whyItMatters: "售后体验下降会放大退款、介入和差评风险。",
+    targets: { protect_service: 90, lighthouse_repair: 90, l_growth: 90 },
+    pathTitle: "修复售后体验短板",
+    checkpoint: "每周看退款处理时长和平台介入。",
+    actionTitle: "清理售后超时和介入风险",
+    method: "把待处理退款、平台介入、品质纠纷按 SKU 和原因分类处理。",
+    evidence: ["售后体验分截图", "售后风险清单"],
+    reviewQuestion: "售后问题是处理慢、承诺不清，还是商品质量问题？"
+  },
+  {
+    id: "lighthouse_consult_score",
+    label: "新灯塔咨询体验分",
+    cadence: "daily",
+    source: newLighthouseAiSource,
+    format: "score",
+    direction: "min",
+    priority: "P0",
+    sort: 76,
+    whyItMatters: "咨询体验直接影响询盘转化，也会拖累服务星级。",
+    targets: { protect_service: 90, lighthouse_repair: 90, l_growth: 90 },
+    pathTitle: "修复咨询体验短板",
+    checkpoint: "每天看 3 分钟响应和咨询满意度异常。",
+    actionTitle: "处理咨询体验异常",
+    method: "检查未及时回复、低满意咨询和快捷回复缺口，补客服排班和话术。",
+    evidence: ["咨询体验分截图", "未及时回复清单"],
+    reviewQuestion: "咨询体验问题来自速度、质量还是低质量询盘占用？"
+  },
+  {
+    id: "lighthouse_product_score",
+    label: "新灯塔商品体验分",
+    cadence: "weekly",
+    source: newLighthouseAiSource,
+    format: "score",
+    direction: "min",
+    priority: "P0",
+    sort: 77,
+    whyItMatters: "商品体验下降通常和品质退款、描述承诺、问题 SKU 有关。",
+    targets: { protect_service: 90, lighthouse_repair: 90, l_growth: 90 },
+    pathTitle: "修复商品体验短板",
+    checkpoint: "每周看品质退款和品质问题。",
+    actionTitle: "排查商品体验异常 SKU",
+    method: "按漏水、保温、掉漆、容量、包装、错发分类，决定停推、改详情页或供应链整改。",
+    evidence: ["商品体验分截图", "问题 SKU 清单"],
+    reviewQuestion: "商品体验下降是品质问题还是预期管理问题？"
   },
   {
     id: "gross_margin_rate",
@@ -956,36 +1161,35 @@ export function getRuleVersionsForGoal(goalId: V2GoalId, rules: RuleVersion[] = 
   return rules.filter((rule) => rule.appliesToGoalIds.includes(goalId));
 }
 
-export function getConfirmedRuleVersionsForGoal(goalId: V2GoalId, rules: RuleVersion[] = ruleVersions): RuleVersion[] {
-  return getRuleVersionsForGoal(goalId, rules).filter((rule) => rule.manuallyConfirmed && rule.status === "active");
+export function getActiveRuleVersionsForGoal(goalId: V2GoalId, rules: RuleVersion[] = ruleVersions): RuleVersion[] {
+  return getRuleVersionsForGoal(goalId, rules).filter((rule) => rule.status === "active");
 }
 
 export function createDraftRuleVersion(input: RuleVersionDraftInput): RuleVersion {
   return {
     ...input,
     id: createRuleVersionId(input),
-    status: "draft",
-    manuallyConfirmed: false,
-    confirmedBy: null,
-    confirmedAt: null,
+    status: "source_found",
+    sourceConfidence: "low",
+    lastReviewedAt: null,
+    reviewNotes: "新录入规则来源待补，可先作为弱提示和 checklist 依据。",
     appliesToGoalIds: [...input.appliesToGoalIds]
   };
 }
 
-export function confirmRuleVersion(
+export function adoptRuleVersion(
   rules: RuleVersion[],
   ruleId: string,
-  confirmedBy: string,
-  confirmedAt: string
+  reviewedAt: string
 ): RuleVersion[] {
   return rules.map((rule) =>
     rule.id === ruleId
       ? {
           ...rule,
           status: "active",
-          manuallyConfirmed: true,
-          confirmedBy,
-          confirmedAt
+          sourceConfidence: rule.sourceConfidence === "low" ? "medium" : rule.sourceConfidence,
+          lastReviewedAt: reviewedAt,
+          reviewNotes: rule.reviewNotes || "当前采用版本，后台口径可覆盖。"
         }
       : rule
   );
@@ -999,10 +1203,65 @@ export function bindRuleVersionToGoal(rules: RuleVersion[], ruleId: string, goal
   );
 }
 
+export function buildSetupChecklist(input: SetupChecklistInput): SetupChecklistItem[] {
+  const items: SetupChecklistItem[] = [];
+
+  if (!input.buyerProtectionEnabled) {
+    items.push({
+      id: "setup-buyer-protection-open",
+      title: "开通买家保障",
+      frequency: "one_time_setup",
+      checkLabel: "完成：主推商品已开通匹配真实履约能力的买家保障",
+      reviewMetricIds: ["buyer_protection_setup_status"]
+    });
+  }
+
+  if (input.buyerProtectionEnabled && input.hasNewProducts) {
+    items.push({
+      id: "setup-buyer-protection-new-products",
+      title: "检查新增商品买家保障配置",
+      frequency: "exception_triggered",
+      checkLabel: "完成：新增商品已检查保障服务和发货承诺",
+      reviewMetricIds: ["buyer_protection_setup_status"]
+    });
+  }
+
+  if (input.buyerProtectionEnabled && input.buyerProtectionBreachCount > 0) {
+    items.push({
+      id: "setup-buyer-protection-breach",
+      title: "处理买家保障承诺异常",
+      frequency: "exception_triggered",
+      checkLabel: "完成：已归因保障承诺异常并处理风险订单",
+      reviewMetricIds: ["buyer_protection_breach_count"]
+    });
+  }
+
+  if (input.buyerProtectionEnabled && input.isMonthlyReviewDue) {
+    items.push({
+      id: "setup-buyer-protection-monthly-review",
+      title: "月度复核买家保障配置",
+      frequency: "periodic_check",
+      checkLabel: "完成：买家保障仍匹配当前商品和履约能力",
+      reviewMetricIds: ["buyer_protection_setup_status", "buyer_protection_breach_count"]
+    });
+  }
+
+  return items;
+}
+
 function createRuleVersionId(input: RuleVersionDraftInput): string {
   const goalId = input.appliesToGoalIds[0] ?? "official";
   const normalizedGoal = goalId.replaceAll("_", "-");
   return `${normalizedGoal}-${input.publishedAt}`;
+}
+
+function getActionFrequency(definition: V2MetricDefinition): ActionFrequency {
+  if (definition.id.startsWith("lighthouse_") || definition.id === "store_service_star_level") {
+    return definition.cadence === "daily" ? "daily_operation" : "periodic_check";
+  }
+  if (definition.cadence === "daily") return "daily_operation";
+  if (definition.cadence === "weekly" || definition.cadence === "monthly") return "periodic_check";
+  return "experiment";
 }
 
 export function buildV3OperatingReview(input: V3OperatingInput): V3OperatingReview {
@@ -1125,12 +1384,53 @@ export function buildV2ActionPlan(dashboard: V2GoalDashboard): V2ActionPlan {
         priority: definition.priority,
         targetMetricId: definition.id,
         cadence: definition.cadence,
+        frequency: getActionFrequency(definition),
         method: definition.method,
         evidence: definition.evidence,
         reviewQuestion: definition.reviewQuestion,
         sopState: "candidate"
       };
     })
+  };
+}
+
+export function buildV8CommandCenter(
+  dashboard: V2GoalDashboard,
+  actionPlan: V2ActionPlan,
+  activeRules: RuleVersion[]
+): V8CommandCenter {
+  const primaryBlocker = dashboard.gaps[0] ?? null;
+  const ruleBasis: V8RuleBasis =
+    activeRules.length > 0
+      ? {
+          status: "active",
+          label: "规则已采用",
+          detail: `当前目标已有 ${activeRules.length} 条采用中的规则版本，后台口径仍可覆盖。`
+        }
+      : {
+          status: "source_found",
+          label: "来源待补",
+          detail: "当前目标没有采用中的规则版本，仍可按来源待补规则生成行动建议。"
+        };
+  const qualification = buildV8Qualification(primaryBlocker, ruleBasis);
+  const todayActions =
+    primaryBlocker === null ? [buildV8SopAction(dashboard.goalId)] : actionPlan.actions.slice(0, 2);
+  const tomorrowCheck = buildV8TomorrowCheck(primaryBlocker);
+  const mission = buildV8DailyMission(dashboard.goalLabel, primaryBlocker, todayActions, tomorrowCheck);
+
+  return {
+    goalId: dashboard.goalId,
+    goalLabel: dashboard.goalLabel,
+    qualification,
+    ruleBasis,
+    primaryBlocker,
+    todayActions,
+    tomorrowCheck,
+    mission,
+    employeeInstruction:
+      primaryBlocker === null
+        ? "今天进入复盘，把有效动作固化成 SOP，避免继续堆新动作。"
+        : `今天只处理 ${todayActions.length} 件事：先修 ${primaryBlocker.metricLabel}，明天用同一指标验证。`
   };
 }
 
@@ -1207,6 +1507,8 @@ function getV2MetricDefinition(id: V2MetricId): V2MetricDefinition {
 function formatV2MetricValue(value: number, format: V2MetricDefinition["format"]): string {
   if (format === "percent") return `${Math.round(value * 100)}%`;
   if (format === "points") return `${Math.round(value).toLocaleString("zh-CN")}`;
+  if (format === "score") return `${Math.round(value * 10) / 10}分`;
+  if (format === "stars") return `${Math.round(value * 10) / 10}星`;
   return `${value}`;
 }
 
@@ -1221,6 +1523,156 @@ function formatV2Effect(effect: V2BacktestResult["effect"]): string {
   if (effect === "effective") return "动作有效，可进入 SOP 验证";
   if (effect === "watch") return "有改善但证据不足，继续观察";
   return "未改善，应停止或换打法";
+}
+
+function buildV8Qualification(primaryBlocker: V2MetricGap | null, ruleBasis: V8RuleBasis): V8Qualification {
+  if (primaryBlocker) {
+    return {
+      status: "blocked",
+      label: "暂不可冲",
+      reason: `${primaryBlocker.metricLabel}${primaryBlocker.gapLabel}，先补这个卡点。`
+    };
+  }
+
+  return {
+    status: "ready",
+    label: "可以冲刺",
+    reason:
+      ruleBasis.status === "active"
+        ? "核心指标已过线，且已有当前采用规则版本。"
+        : "核心指标已过线；规则来源待补，但不阻塞员工继续执行。"
+  };
+}
+
+function buildV8TomorrowCheck(primaryBlocker: V2MetricGap | null): V8TomorrowCheck {
+  if (!primaryBlocker) {
+    return {
+      metricId: null,
+      metricLabel: "SOP 有效性",
+      currentLabel: "已达标",
+      targetLabel: "保持达标",
+      question: "明天验证：核心指标是否继续保持达标，并沉淀 1 条可复用 SOP。"
+    };
+  }
+
+  return {
+    metricId: primaryBlocker.metricId,
+    metricLabel: primaryBlocker.metricLabel,
+    currentLabel: primaryBlocker.currentLabel,
+    targetLabel: primaryBlocker.targetLabel,
+    question: `明天验证：${primaryBlocker.metricLabel}是否从 ${primaryBlocker.currentLabel} 回升到 ${primaryBlocker.targetLabel} 以上。`
+  };
+}
+
+function buildV8DailyMission(
+  goalLabel: string,
+  primaryBlocker: V2MetricGap | null,
+  todayActions: V2Action[],
+  tomorrowCheck: V8TomorrowCheck
+): V8DailyMission {
+  const goal = primaryBlocker
+    ? {
+        title: `修复${primaryBlocker.metricLabel}`,
+        metricLabel: primaryBlocker.metricLabel,
+        currentLabel: primaryBlocker.currentLabel,
+        targetLabel: primaryBlocker.targetLabel,
+        priorityReason: `${goalLabel} 当前被 ${primaryBlocker.metricLabel} 卡住，${primaryBlocker.whyItMatters}`
+      }
+    : {
+        title: "固化本周有效 SOP",
+        metricLabel: "SOP 有效性",
+        currentLabel: "已达标",
+        targetLabel: "保持达标",
+        priorityReason: `${goalLabel} 核心指标已过线，今天不继续堆新动作，先把有效做法沉淀。`
+      };
+
+  return {
+    status: "pending",
+    completionMode: "checklist",
+    stage: buildV8MissionStage(primaryBlocker),
+    goal,
+    actions: todayActions.map((action) => buildV8MissionAction(action, tomorrowCheck)),
+    tomorrowChecks: [tomorrowCheck],
+    yesterdayReview: {
+      label: "待复盘",
+      summary: "昨天动作结果等新数据导入后自动判断。",
+      decision: "等明天数据验证，不要求员工上传证据。"
+    }
+  };
+}
+
+function buildV8MissionAction(action: V2Action, tomorrowCheck: V8TomorrowCheck): V8MissionAction {
+  const definition = getV2MetricDefinition(action.targetMetricId);
+  const owner = getV8ActionOwner(action.targetMetricId);
+
+  return {
+    id: action.id,
+    title: action.title,
+    priority: action.priority,
+    owner,
+    dueTime: getV8ActionDueTime(owner),
+    checkLabel: `完成：${action.title}`,
+    targetMetricLabel: definition.label,
+    expectedImpact: tomorrowCheck.question,
+    method: action.method,
+    notePrompt: "可选备注：只写影响完成或指标异常的原因。"
+  };
+}
+
+function buildV8MissionStage(primaryBlocker: V2MetricGap | null): V8DailyMission["stage"] {
+  if (!primaryBlocker) return "sop_review";
+  if (
+    primaryBlocker.metricId === "ww_3min_response_rate" ||
+    primaryBlocker.metricId === "factory_service_response_rate_30d" ||
+    primaryBlocker.metricId === "pickup_48h_rate_30d" ||
+    primaryBlocker.metricId === "factory_fulfillment_rate_30d"
+  ) {
+    return "service_fixing";
+  }
+  if (
+    primaryBlocker.metricId === "monthly_active_small_custom_sku_count" ||
+    primaryBlocker.metricId === "custom_trade_points_30d" ||
+    primaryBlocker.metricId === "contract_payment_rate"
+  ) {
+    return "factory_level_sprint";
+  }
+  return "growth_scaling";
+}
+
+function getV8ActionOwner(metricId: V2MetricId): V8MissionAction["owner"] {
+  if (metricId === "ww_3min_response_rate" || metricId === "factory_service_response_rate_30d") {
+    return "客服员工";
+  }
+  if (
+    metricId === "factory_fulfillment_rate_30d" ||
+    metricId === "pickup_48h_rate_30d" ||
+    metricId === "gross_margin_rate" ||
+    metricId === "quality_refund_rate"
+  ) {
+    return "负责人";
+  }
+  return "运营员工";
+}
+
+function getV8ActionDueTime(owner: V8MissionAction["owner"]): string {
+  if (owner === "客服员工") return "18:00";
+  if (owner === "运营员工") return "19:00";
+  return "20:00";
+}
+
+function buildV8SopAction(goalId: V2GoalId): V2Action {
+  return {
+    id: `action-v8-sop-${goalId}`,
+    title: "进入周复盘并固化 SOP",
+    priority: "P2",
+    targetMetricId: "weekly_sop_count",
+    cadence: "weekly",
+    frequency: "periodic_check",
+    method: "复盘本周有效动作，把能稳定改善指标的做法沉淀为员工可复用 SOP。",
+    evidence: ["有效动作记录", "指标达标截图", "SOP 草稿"],
+    reviewQuestion: "这条 SOP 是否能让新人照做，并在下周继续改善同一指标？",
+    sopState: "candidate"
+  };
 }
 
 function safeDivide(numerator: number, denominator: number): number {

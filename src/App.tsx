@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   BarChart3,
@@ -7,11 +7,13 @@ import {
   CheckCircle2,
   ClipboardList,
   Factory,
+  FileSpreadsheet,
   GraduationCap,
   ShieldCheck,
   PackageCheck,
   RotateCcw,
-  Target
+  Target,
+  Upload
 } from "lucide-react";
 import {
   backtestV2Action,
@@ -21,10 +23,11 @@ import {
   buildV3OperatingReview,
   buildV4DailyOperatingReview,
   buildV5OperatingLoop,
+  buildV8CommandCenter,
   bindRuleVersionToGoal,
-  confirmRuleVersion,
+  adoptRuleVersion,
   createDraftRuleVersion,
-  getConfirmedRuleVersionsForGoal,
+  getActiveRuleVersionsForGoal,
   getDefaultRuleVersions,
   type V2Action,
   type V2BacktestResult,
@@ -36,19 +39,17 @@ import {
   type V4DailyFactInput,
   type V5ChecklistBacktestResult
 } from "./lib/operations";
+import { parseSycmCoreBoardRows, type SheetRows, type SycmCoreBoardImport } from "./lib/sycmImport";
+import { createDemoStorage, loadAppStorage, saveAppStorage } from "./lib/storage";
 import "./styles.css";
 
 type Page =
-  | "entry"
-  | "daily"
-  | "loop"
-  | "rules"
-  | "gaps"
-  | "path"
-  | "backtest"
-  | "reasoning"
-  | "sku"
-  | "capability";
+  | "command"
+  | "data"
+  | "analysis"
+  | "product"
+  | "review"
+  | "rules";
 
 type EditableMetric = {
   id: V2MetricId;
@@ -59,16 +60,21 @@ type EditableMetric = {
 };
 
 const pageLabels: Record<Page, string> = {
-  entry: "数据录入",
-  daily: "每日经营",
-  loop: "V5 闭环",
-  rules: "规则版本",
-  gaps: "目标差距",
-  path: "路径拆解",
-  backtest: "动作回测",
-  reasoning: "经营推理",
-  sku: "SKU 组合",
-  capability: "员工能力"
+  command: "今日",
+  data: "数据",
+  analysis: "分析",
+  product: "商品",
+  review: "复盘",
+  rules: "规则"
+};
+
+const pageMeta: Record<Page, { step: string; detail: string }> = {
+  command: { step: "01", detail: "看今天做什么" },
+  data: { step: "02", detail: "录入和导入" },
+  analysis: { step: "03", detail: "找趋势卡点" },
+  product: { step: "04", detail: "管商品资产" },
+  review: { step: "05", detail: "验证和沉淀" },
+  rules: { step: "06", detail: "维护规则口径" }
 };
 
 const goalOptions: Array<{ id: V2GoalId; label: string }> = [
@@ -124,7 +130,7 @@ const editableMetrics: EditableMetric[] = [
   },
   {
     id: "gross_margin_rate",
-    label: "毛利率",
+    label: "目标毛利率",
     helper: "每周录入真实毛利，含包装、运费、售后、广告",
     unit: "%",
     period: "2026-W21"
@@ -259,6 +265,12 @@ const initialValues: Record<V2MetricId, number> = {
   ww_3min_response_rate: 0.52,
   factory_service_response_rate_30d: 0.55,
   pickup_48h_rate_30d: 0.96,
+  lighthouse_score: 88,
+  store_service_star_level: 4,
+  lighthouse_logistics_score: 90,
+  lighthouse_after_sales_score: 86,
+  lighthouse_consult_score: 82,
+  lighthouse_product_score: 89,
   factory_fulfillment_rate_30d: 0.68,
   monthly_active_small_custom_sku_count: 1,
   custom_trade_points_30d: 60000,
@@ -273,6 +285,12 @@ const initialRuleForm = {
   publishedAt: "2026-06-01",
   sourceUrl: "https://factory.1688.com/rules/factory-level-june",
   scope: "保温杯 / 找工厂 / 新规则待确认"
+};
+
+type SycmImportStatus = {
+  fileName: string;
+  result: SycmCoreBoardImport | null;
+  error: string | null;
 };
 
 const sampleSkuFacts: V3SkuFact[] = [
@@ -319,17 +337,22 @@ const sampleCapability: V3CapabilitySnapshot = {
 };
 
 export default function App() {
-  const [page, setPage] = useState<Page>("entry");
-  const [goalId, setGoalId] = useState<V2GoalId>("factory_bronze");
+  const [initialStorage] = useState(() => loadAppStorage().storage);
+  const [page, setPage] = useState<Page>(initialStorage.currentPage);
+  const [goalId, setGoalId] = useState<V2GoalId>(initialStorage.currentGoalId);
   const [values, setValues] = useState(initialValues);
-  const [dailyFacts, setDailyFacts] = useState<V4DailyFactInput>(initialDailyFacts);
+  const [dailyFacts, setDailyFacts] = useState<V4DailyFactInput>(initialStorage.dailyFacts[0] ?? initialDailyFacts);
   const [backtestAfter, setBacktestAfter] = useState("62");
   const [backtestResult, setBacktestResult] = useState<V2BacktestResult | null>(null);
-  const [checkedChecklistIds, setCheckedChecklistIds] = useState<string[]>([]);
+  const [checkedChecklistIds, setCheckedChecklistIds] = useState<string[]>(initialStorage.checkedChecklistIds);
+  const [completedMissionActionIds, setCompletedMissionActionIds] = useState<string[]>(
+    initialStorage.completedMissionActionIds
+  );
   const [v5BacktestAfter, setV5BacktestAfter] = useState("6.1");
   const [v5BacktestResult, setV5BacktestResult] = useState<V5ChecklistBacktestResult | null>(null);
   const [ruleVersions, setRuleVersions] = useState(() => getDefaultRuleVersions());
   const [ruleForm, setRuleForm] = useState(initialRuleForm);
+  const [sycmImportStatus, setSycmImportStatus] = useState<SycmImportStatus | null>(null);
 
   const readings = useMemo<V2MetricReadingInput[]>(
     () =>
@@ -342,10 +365,17 @@ export default function App() {
   );
   const dashboard = useMemo(() => buildV2GoalDashboard(goalId, readings, ruleVersions), [goalId, readings, ruleVersions]);
   const actionPlan = useMemo(() => buildV2ActionPlan(dashboard), [dashboard]);
-  const confirmedRules = useMemo(
-    () => getConfirmedRuleVersionsForGoal(goalId, ruleVersions),
+  const activeRules = useMemo(
+    () => getActiveRuleVersionsForGoal(goalId, ruleVersions),
     [goalId, ruleVersions]
   );
+  const commandCenter = useMemo(
+    () => buildV8CommandCenter(dashboard, actionPlan, activeRules),
+    [dashboard, actionPlan, activeRules]
+  );
+  const missionCompletedCount = commandCenter.mission.actions.filter((action) =>
+    completedMissionActionIds.includes(action.id)
+  ).length;
   const v3Review = useMemo(
     () =>
       buildV3OperatingReview({
@@ -360,6 +390,17 @@ export default function App() {
   const v5Loop = useMemo(() => buildV5OperatingLoop(sampleDailyHistory), []);
   const firstAction = actionPlan.actions[0] ?? null;
   const firstChecklistAction = v5Loop.checklist[0] ?? null;
+
+  useEffect(() => {
+    saveAppStorage(window.localStorage, {
+      ...createDemoStorage(),
+      currentGoalId: goalId,
+      currentPage: page,
+      dailyFacts: [dailyFacts],
+      checkedChecklistIds,
+      completedMissionActionIds
+    });
+  }, [checkedChecklistIds, completedMissionActionIds, dailyFacts, goalId, page]);
 
   function updateMetric(metric: EditableMetric, rawValue: string) {
     const numericValue = Number(rawValue);
@@ -385,8 +426,37 @@ export default function App() {
     }));
   }
 
+  async function importSycmCoreBoard(file: File) {
+    try {
+      const XLSX = await import("xlsx");
+      const buffer = await readFileAsArrayBuffer(file);
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) throw new Error("文件中没有工作表。");
+
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: "" }) as SheetRows;
+      const result = parseSycmCoreBoardRows(rows, dailyFacts);
+      setDailyFacts(result.fact);
+      setSycmImportStatus({ fileName: file.name, result, error: null });
+      setPage("data");
+    } catch (error) {
+      setSycmImportStatus({
+        fileName: file.name,
+        result: null,
+        error: error instanceof Error ? error.message : "导入失败，请检查文件格式。"
+      });
+    }
+  }
+
   function toggleChecklist(id: string) {
     setCheckedChecklistIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    );
+  }
+
+  function toggleMissionAction(id: string) {
+    setCompletedMissionActionIds((current) =>
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
     );
   }
@@ -410,8 +480,8 @@ export default function App() {
     setRuleVersions((current) => current.filter((rule) => rule.id !== draft.id).concat(draft));
   }
 
-  function confirmRule(ruleId: string) {
-    setRuleVersions((current) => confirmRuleVersion(current, ruleId, "Leon", "2026-05-23"));
+  function adoptRule(ruleId: string) {
+    setRuleVersions((current) => adoptRuleVersion(current, ruleId, "2026-05-23"));
   }
 
   function bindRuleToCurrentGoal(ruleId: string) {
@@ -437,35 +507,182 @@ export default function App() {
         </label>
       </header>
 
-      <nav className="mode-tabs v2-tabs" aria-label="V5 页面">
+      <nav className="mode-tabs v2-tabs" aria-label="主导航">
         {(Object.keys(pageLabels) as Page[]).map((key) => (
-          <button className={page === key ? "active" : ""} key={key} type="button" onClick={() => setPage(key)}>
-            {pageLabels[key]}
+          <button
+            aria-label={pageLabels[key]}
+            className={page === key ? "active" : ""}
+            key={key}
+            type="button"
+            onClick={() => setPage(key)}
+          >
+            <span>{pageMeta[key].step}</span>
+            <strong>{pageLabels[key]}</strong>
+            <small>{pageMeta[key].detail}</small>
           </button>
         ))}
       </nav>
 
-      <section className="risk-strip v2-scoreboard">
-        <div className={`risk-card ${dashboard.gaps[0]?.priority.toLowerCase() ?? "p3"}`}>
+      <section className="operation-summary" aria-label="运营摘要">
+        <article className={`summary-card primary ${dashboard.gaps[0]?.priority.toLowerCase() ?? "p3"}`}>
           <Activity aria-hidden="true" />
           <span>当前目标</span>
           <strong>{dashboard.goalLabel}</strong>
           <small>{dashboard.summary}</small>
-        </div>
-        <div className="risk-explain">
-          <p>V5 把每日数据变成员工闭环：趋势判断、卡点漏斗、今日 checklist、动作回测和 SOP 候选连在一起。</p>
-          <div className="flow-line">
-            {v3Review.goalLayers.map((layer) => (
-              <span key={layer.id}>{layer.label}</span>
-            ))}
-            <span>原因假设</span>
-            <span>实验卡</span>
-            <span>SOP</span>
-          </div>
-        </div>
+        </article>
+        <article className="summary-card action">
+          <ClipboardList aria-hidden="true" />
+          <span>今日任务</span>
+          <strong>{`${missionCompletedCount}/${commandCenter.mission.actions.length}`}</strong>
+          <small>{commandCenter.mission.goal.title}</small>
+        </article>
+        <article className={`summary-card bottleneck ${commandCenter.primaryBlocker?.priority.toLowerCase() ?? "p3"}`}>
+          <Target aria-hidden="true" />
+          <span>当前卡点</span>
+          <strong>{commandCenter.primaryBlocker?.metricLabel ?? "已达标"}</strong>
+          <small>{commandCenter.primaryBlocker?.gapLabel ?? "进入复盘和 SOP 固化"}</small>
+        </article>
+        <article className="summary-card verify">
+          <RotateCcw aria-hidden="true" />
+          <span>明日验证</span>
+          <strong>{commandCenter.tomorrowCheck.metricLabel}</strong>
+          <small>{commandCenter.tomorrowCheck.question}</small>
+        </article>
       </section>
 
-      {page === "entry" && (
+      {page === "command" && (
+        <section className="page-grid command-grid">
+          <div className="panel task-panel">
+            <div className="section-title">
+              <Target aria-hidden="true" />
+              <h2>今日指挥台</h2>
+            </div>
+
+            <div className="mission-head">
+              <div className="section-title">
+                <ClipboardList aria-hidden="true" />
+                <h2>今日作战单</h2>
+              </div>
+              <span>{`已完成 ${missionCompletedCount}/${commandCenter.mission.actions.length}`}</span>
+            </div>
+
+            <article className="mission-goal-card">
+              <span>今日唯一主目标</span>
+              <strong>{commandCenter.mission.goal.title}</strong>
+              <p>{commandCenter.mission.goal.priorityReason}</p>
+              <dl>
+                <dt>当前</dt>
+                <dd>{commandCenter.mission.goal.currentLabel}</dd>
+                <dt>目标</dt>
+                <dd>{commandCenter.mission.goal.targetLabel}</dd>
+              </dl>
+            </article>
+
+            <div className={`command-qualification ${commandCenter.qualification.status}`}>
+              <span>{commandCenter.qualification.label}</span>
+              <strong>{commandCenter.goalLabel}</strong>
+              <p>{commandCenter.qualification.reason}</p>
+            </div>
+
+            <div className="section-title stacked-title">
+              <Activity aria-hidden="true" />
+              <h2>最大卡点</h2>
+            </div>
+            {commandCenter.primaryBlocker ? (
+              <article className={`gap-card ${commandCenter.primaryBlocker.priority.toLowerCase()}`}>
+                <div>
+                  <span>{commandCenter.primaryBlocker.priority}</span>
+                  <strong>{commandCenter.primaryBlocker.metricLabel}</strong>
+                </div>
+                <p>
+                  {commandCenter.primaryBlocker.currentLabel} / 目标 {commandCenter.primaryBlocker.targetLabel}
+                </p>
+                <small>{commandCenter.primaryBlocker.whyItMatters}</small>
+              </article>
+            ) : (
+              <p className="empty-copy">当前核心指标已过线，今天重点进入复盘和 SOP 固化。</p>
+            )}
+
+            <div className="section-title stacked-title">
+              <ClipboardList aria-hidden="true" />
+              <h2>今日 Checklist</h2>
+            </div>
+            <p className="command-instruction">
+              <strong>今天只处理 {commandCenter.todayActions.length} 件事</strong>
+              {commandCenter.employeeInstruction.replace(`今天只处理 ${commandCenter.todayActions.length} 件事`, "")}
+            </p>
+            <div className="task-list command-task-list">
+              {commandCenter.mission.actions.map((action) => (
+                <article className={`task-card mission-action-card ${action.priority.toLowerCase()}`} key={action.id}>
+                  <div className="task-head">
+                    <span>{action.priority}</span>
+                    <strong>{action.title}</strong>
+                  </div>
+                  <div className="mission-action-meta">
+                    <small>负责人：{action.owner}</small>
+                    <small>截止：{action.dueTime}</small>
+                    <small>指标：{action.targetMetricLabel}</small>
+                  </div>
+                  <p>{action.method}</p>
+                  <label className="mission-check">
+                    <input
+                      checked={completedMissionActionIds.includes(action.id)}
+                      type="checkbox"
+                      onChange={() => toggleMissionAction(action.id)}
+                    />
+                    <span>{action.checkLabel}</span>
+                  </label>
+                  <dl>
+                    <dt>明日验证</dt>
+                    <dd>{action.expectedImpact}</dd>
+                    <dt>备注</dt>
+                    <dd>{action.notePrompt}</dd>
+                  </dl>
+                </article>
+              ))}
+            </div>
+          </div>
+
+          <aside className="panel method-panel">
+            <div className="section-title">
+              <ShieldCheck aria-hidden="true" />
+              <h2>规则依据</h2>
+            </div>
+            <div className={`rule-basis command-rule-basis ${commandCenter.ruleBasis.status}`}>
+              <strong>{commandCenter.ruleBasis.label}</strong>
+              <p>{commandCenter.ruleBasis.detail}</p>
+            </div>
+
+            <div className="section-title stacked-title">
+              <CheckCircle2 aria-hidden="true" />
+              <h2>昨日复盘</h2>
+            </div>
+            <div className="mission-review-card">
+              <span>{commandCenter.mission.yesterdayReview.label}</span>
+              <strong>{commandCenter.mission.yesterdayReview.summary}</strong>
+              <p>{commandCenter.mission.yesterdayReview.decision}</p>
+            </div>
+
+            <div className="section-title stacked-title">
+              <RotateCcw aria-hidden="true" />
+              <h2>明日验证</h2>
+            </div>
+            <div className="tomorrow-check">
+              <span>{commandCenter.tomorrowCheck.metricLabel}</span>
+              <strong>{commandCenter.tomorrowCheck.question}</strong>
+              <p>
+                当前 {commandCenter.tomorrowCheck.currentLabel} / 目标 {commandCenter.tomorrowCheck.targetLabel}
+              </p>
+            </div>
+
+            <button className="primary-action" type="button" onClick={() => setPage("data")}>
+              录入今日数据
+            </button>
+          </aside>
+        </section>
+      )}
+
+      {page === "data" && (
         <section className="page-grid entry-grid">
           <div className="panel task-panel">
             <div className="section-title">
@@ -507,7 +724,116 @@ export default function App() {
         </section>
       )}
 
-      {page === "daily" && (
+      {page === "data" && (
+        <section className="page-grid import-grid">
+          <div className="panel task-panel">
+            <div className="section-title">
+              <Upload aria-hidden="true" />
+              <h2>数据导入</h2>
+            </div>
+
+            <div className="import-card primary-import-card">
+              <div className="import-card-head">
+                <FileSpreadsheet aria-hidden="true" />
+                <div>
+                  <strong>生意参谋首页核心看板导入</strong>
+                  <p>支持日 / 周 / 月下载的 xls、xlsx，把店铺整体数据导入每日经营事实表。</p>
+                </div>
+              </div>
+              <label className="file-upload">
+                <span>上传生意参谋核心看板 xls</span>
+                <input
+                  accept=".xls,.xlsx"
+                  aria-label="上传生意参谋核心看板 xls"
+                  type="file"
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    if (file) void importSycmCoreBoard(file);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+              <div className="import-field-grid">
+                <span>展现次数</span>
+                <span>广告展现</span>
+                <span>访客数</span>
+                <span>支付金额</span>
+                <span>支付订单</span>
+                <span>推广消耗</span>
+              </div>
+            </div>
+
+            <div className="import-card">
+              <div className="import-card-head">
+                <PackageCheck aria-hidden="true" />
+                <div>
+                  <strong>商品列表导入</strong>
+                  <p>先接 Excel / 复制表格，截图 OCR 放到下一轮。</p>
+                </div>
+              </div>
+              <div className="import-field-grid">
+                <span>商品 ID</span>
+                <span>商品名称</span>
+                <span>价格</span>
+                <span>库存</span>
+                <span>7 天曝光</span>
+                <span>30 天访客</span>
+                <span>咨询数</span>
+                <span>30 天 GMV</span>
+                <span>AI 诊断</span>
+              </div>
+            </div>
+          </div>
+
+          <aside className="panel method-panel">
+            <div className="section-title">
+              <BarChart3 aria-hidden="true" />
+              <h2>导入结果</h2>
+            </div>
+            {sycmImportStatus?.result ? (
+              <div className="import-result">
+                <span>已导入</span>
+                <strong>{sycmImportStatus.fileName}</strong>
+                <p>
+                  识别 {sycmImportStatus.result.rowCount} 行数据，最新日期 {sycmImportStatus.result.fact.date}。
+                </p>
+                <dl>
+                  <dt>总曝光</dt>
+                  <dd>{sycmImportStatus.result.fact.totalExposure}</dd>
+                  <dt>广告消耗</dt>
+                  <dd>{formatMoney(sycmImportStatus.result.fact.adSpend)}</dd>
+                  <dt>支付金额</dt>
+                  <dd>{formatMoney(sycmImportStatus.result.fact.paymentAmount)}</dd>
+                  <dt>保留手填字段</dt>
+                  <dd>{formatMissingImportFields(sycmImportStatus.result.missingFields)}</dd>
+                </dl>
+              </div>
+            ) : sycmImportStatus?.error ? (
+              <div className="import-result error">
+                <span>导入失败</span>
+                <strong>{sycmImportStatus.fileName}</strong>
+                <p>{sycmImportStatus.error}</p>
+              </div>
+            ) : (
+              <p className="empty-copy">
+                上传生意参谋首页核心看板后，系统会自动更新每日经营事实表，并用现有异常归因逻辑生成卡点。
+              </p>
+            )}
+
+            <div className="section-title stacked-title">
+              <ClipboardList aria-hidden="true" />
+              <h2>导入节奏</h2>
+            </div>
+            <div className="cadence-list">
+              <p><strong>每日</strong> 导入昨天数据，生成今天 checklist。</p>
+              <p><strong>每周</strong> 看趋势和动作是否有效。</p>
+              <p><strong>每月</strong> 校准目标、预算和商品结构。</p>
+            </div>
+          </aside>
+        </section>
+      )}
+
+      {page === "data" && (
         <section className="page-grid daily-grid">
           <div className="panel task-panel">
             <div className="section-title">
@@ -603,7 +929,7 @@ export default function App() {
         </section>
       )}
 
-      {page === "loop" && (
+      {page === "analysis" && (
         <section className="v5-grid">
           <div className="panel">
             <div className="section-title">
@@ -734,8 +1060,8 @@ export default function App() {
               {ruleVersions.map((rule) => (
                 <article className="rule-card" key={rule.id}>
                   <div className="rule-card-head">
-                    <span className={rule.manuallyConfirmed ? "confirmed" : "unconfirmed"}>
-                      {rule.manuallyConfirmed ? "已人工确认" : "未人工确认"}
+                    <span className={rule.status === "active" ? "confirmed" : "unconfirmed"}>
+                      {rule.status === "active" ? "已采用" : "来源待补"}
                     </span>
                     <strong>{rule.name}</strong>
                   </div>
@@ -752,24 +1078,19 @@ export default function App() {
                     </dd>
                     <dt>规则状态</dt>
                     <dd>{formatRuleStatus(rule.status)}</dd>
-                    <dt>确认信息</dt>
-                    <dd>
-                      {rule.manuallyConfirmed && rule.confirmedBy ? (
-                        <span className="rule-confirmation">
-                          <span>确认人：{rule.confirmedBy}</span>
-                          <span>{rule.confirmedAt}</span>
-                        </span>
-                      ) : (
-                        "待负责人核验"
-                      )}
-                    </dd>
+                    <dt>来源可信度</dt>
+                    <dd>{formatSourceConfidence(rule.sourceConfidence)}</dd>
+                    <dt>最近维护</dt>
+                    <dd>{rule.lastReviewedAt ?? "待补"}</dd>
+                    <dt>维护说明</dt>
+                    <dd>{rule.reviewNotes}</dd>
                     <dt>绑定目标</dt>
                     <dd>{rule.appliesToGoalIds.map((id) => goalLabel(id)).join("、")}</dd>
                   </dl>
                   <div className="rule-actions">
-                    {!rule.manuallyConfirmed ? (
-                      <button type="button" onClick={() => confirmRule(rule.id)}>
-                        确认规则
+                    {rule.status !== "active" ? (
+                      <button type="button" onClick={() => adoptRule(rule.id)}>
+                        采用规则
                       </button>
                     ) : null}
                     {!rule.appliesToGoalIds.includes(goalId) ? (
@@ -788,8 +1109,8 @@ export default function App() {
               <h2>规则运营后台</h2>
             </div>
             <div className="rule-basis">
-              <strong>员工可用规则 {confirmedRules.length} 条</strong>
-              <p>{confirmedRules.length === 0 ? "当前目标还没有人工确认规则，员工动作只按草案提示执行。" : "已确认规则可以作为当前目标的员工执行依据。"}</p>
+              <strong>当前采用规则 {activeRules.length} 条</strong>
+              <p>{activeRules.length === 0 ? "当前目标还没有采用中的规则版本，仍可按来源待补规则生成行动建议。" : "已采用规则会进入目标差距和 checklist，后台口径仍可覆盖。"}</p>
             </div>
             <div className="rule-form">
               <label>
@@ -830,14 +1151,14 @@ export default function App() {
             </div>
             <div className="cadence-list">
               <p><strong>当前目标</strong>{dashboard.goalLabel}</p>
-              <p><strong>确认要求</strong>未人工确认的规则只能作为草案，不能进入员工可用规则。</p>
-              <p><strong>更新动作</strong>官方规则变更后，先新增草案，再人工确认，最后绑定目标。</p>
+              <p><strong>使用原则</strong>不再用来源核验卡住员工端；来源待补也可以生成建议。</p>
+              <p><strong>更新动作</strong>官方规则变更后，新增规则版本，标记来源可信度，再按后台口径采用。</p>
             </div>
           </aside>
         </section>
       )}
 
-      {page === "gaps" && (
+      {page === "analysis" && (
         <section className="page-grid goals-grid">
           <div className="panel task-panel">
             <div className="section-title">
@@ -876,7 +1197,7 @@ export default function App() {
             </div>
             <div className="rule-chip-list">
               {dashboard.ruleVersions.map((rule) => (
-                <span className={rule.manuallyConfirmed ? "confirmed" : "unconfirmed"} key={rule.id}>
+                <span className={rule.status === "active" ? "confirmed" : "unconfirmed"} key={rule.id}>
                   {rule.name}
                 </span>
               ))}
@@ -885,7 +1206,7 @@ export default function App() {
         </section>
       )}
 
-      {page === "path" && (
+      {page === "analysis" && (
         <section className="page-grid today-grid">
           <div className="panel task-panel">
             <div className="section-title">
@@ -933,7 +1254,7 @@ export default function App() {
         </section>
       )}
 
-      {page === "backtest" && (
+      {page === "review" && (
         <section className="page-grid review-grid">
           <div className="panel backtest-panel">
             <div className="section-title">
@@ -985,7 +1306,7 @@ export default function App() {
         </section>
       )}
 
-      {page === "reasoning" && (
+      {page === "analysis" && (
         <section className="page-grid reasoning-grid">
           <div className="panel task-panel">
             <div className="section-title">
@@ -1042,7 +1363,7 @@ export default function App() {
         </section>
       )}
 
-      {page === "sku" && (
+      {page === "product" && (
         <section className="page-grid sku-grid">
           <div className="panel task-panel">
             <div className="section-title">
@@ -1079,7 +1400,7 @@ export default function App() {
         </section>
       )}
 
-      {page === "capability" && (
+      {page === "review" && (
         <section className="page-grid capability-grid">
           <div className="panel task-panel">
             <div className="section-title">
@@ -1144,16 +1465,49 @@ function formatMoney(value: number): string {
   return `¥${Number(value.toFixed(1)).toLocaleString("zh-CN")}`;
 }
 
+function formatMissingImportFields(fields: SycmCoreBoardImport["missingFields"]): string {
+  if (fields.length === 0) return "无";
+  const labels: Record<SycmCoreBoardImport["missingFields"][number], string> = {
+    inquiries: "询盘",
+    grossMarginRate: "毛利率"
+  };
+  return fields.map((field) => labels[field]).join("、");
+}
+
+function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+  if (typeof file.arrayBuffer === "function") return file.arrayBuffer();
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (reader.result instanceof ArrayBuffer) {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error("无法读取上传文件。"));
+    };
+    reader.onerror = () => reject(new Error("无法读取上传文件。"));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 function formatReviewCadence(cadence: "daily" | "three_days" | "weekly"): string {
   if (cadence === "daily") return "每日";
   if (cadence === "three_days") return "3 天";
   return "每周";
 }
 
-function formatRuleStatus(status: "draft" | "active" | "superseded"): string {
+function formatRuleStatus(status: "draft" | "source_found" | "active" | "deprecated"): string {
   if (status === "active") return "生效";
-  if (status === "superseded") return "已被替换";
+  if (status === "source_found") return "来源待补";
+  if (status === "deprecated") return "已过期";
   return "草案";
+}
+
+function formatSourceConfidence(confidence: "low" | "medium" | "high"): string {
+  if (confidence === "high") return "高";
+  if (confidence === "medium") return "中";
+  return "低";
 }
 
 function goalLabel(goalId: V2GoalId): string {
