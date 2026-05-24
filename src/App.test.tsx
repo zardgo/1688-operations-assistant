@@ -26,28 +26,27 @@ describe("1688 operations assistant UI", () => {
     });
   });
 
-  it("opens on a V8 command center with qualification, blocker, today actions, and tomorrow check", async () => {
+  it("opens on a readable today task page with one primary goal, checklist, and collapsed context", async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    expect(screen.getByRole("button", { name: "今日" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "今日指挥台" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "今日作战单" })).toBeInTheDocument();
-    expect(screen.getByText("今日唯一主目标")).toBeInTheDocument();
-    expect(screen.getAllByText("修复旺旺 3 分钟响应率").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "今日任务" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "今天先处理：旺旺 3 分钟响应率" })).toBeInTheDocument();
+    expect(screen.getByText("当前 52%，目标 60%，差 8 个百分点")).toBeInTheDocument();
+    expect(screen.getByText("原因：低于底线会伤害咨询体验，并可能触发平台接待降权风险。")).toBeInTheDocument();
     expect(screen.getByText("已完成 0/2")).toBeInTheDocument();
-    expect(screen.getByText("暂不可冲")).toBeInTheDocument();
     expect(screen.getByText("最大卡点")).toBeInTheDocument();
+    expect(screen.getByText("明日验证指标")).toBeInTheDocument();
     expect(screen.getAllByText("旺旺 3 分钟响应率").length).toBeGreaterThan(1);
     expect(screen.getByText("今天只处理 2 件事")).toBeInTheDocument();
     expect(screen.getByText("补齐 09:00-21:00 首响值班和快捷回复")).toBeInTheDocument();
     expect(screen.getByText("追踪找工厂近 30 天未响应咨询")).toBeInTheDocument();
     expect(screen.getAllByText("负责人：客服员工").length).toBeGreaterThan(0);
     expect(screen.getByRole("checkbox", { name: "完成：补齐 09:00-21:00 首响值班和快捷回复" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "昨日复盘" })).toBeInTheDocument();
-    expect(screen.getByText("待复盘")).toBeInTheDocument();
+    expect(screen.getByText("规则依据")).toBeInTheDocument();
+    expect(screen.getByText("昨日复盘")).toBeInTheDocument();
+    expect(screen.queryByText("来源待补")).not.toBeInTheDocument();
     expect(screen.getAllByText("明天验证：旺旺 3 分钟响应率是否从 52% 回升到 60% 以上。").length).toBeGreaterThan(0);
-    expect(screen.getByText("来源待补")).toBeInTheDocument();
 
     await user.click(screen.getByRole("checkbox", { name: "完成：补齐 09:00-21:00 首响值班和快捷回复" }));
 
@@ -55,7 +54,7 @@ describe("1688 operations assistant UI", () => {
 
     await user.click(screen.getByRole("button", { name: "录入今日数据" }));
 
-    expect(screen.getByRole("heading", { name: "V2 数据录入" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "录入今天的数据" })).toBeInTheDocument();
   });
 
   it("shows only six primary navigation items", () => {
@@ -63,12 +62,12 @@ describe("1688 operations assistant UI", () => {
 
     const nav = screen.getByRole("navigation", { name: "主导航" });
     expect(nav.querySelectorAll("button")).toHaveLength(6);
-    expect(screen.getByRole("button", { name: "今日" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "数据" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "分析" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "商品" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "复盘" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "规则" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "今日任务" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "数据录入" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "卡点诊断" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "商品诊断" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "动作复盘" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "规则维护" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "路径拆解" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "动作回测" })).not.toBeInTheDocument();
   });
@@ -92,15 +91,15 @@ describe("1688 operations assistant UI", () => {
     render(<App />);
 
     expect(screen.getByRole("heading", { name: "1688 运营助手" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "今日" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "数据" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "今日任务" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "数据录入" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByRole("button", { name: "数据录入" }));
 
     const responseInput = screen.getByLabelText("旺旺 3 分钟响应率");
     await user.clear(responseInput);
     await user.type(responseInput, "61");
-    await user.click(screen.getByRole("button", { name: "分析" }));
+    await user.click(screen.getByRole("button", { name: "卡点诊断" }));
 
     expect(screen.queryByText("旺旺 3 分钟响应率差 8 个百分点")).not.toBeInTheDocument();
     expect(screen.getByText("找工厂服务响应率差 5 个百分点")).toBeInTheDocument();
@@ -112,9 +111,13 @@ describe("1688 operations assistant UI", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByRole("button", { name: "数据录入" }));
 
-    expect(screen.getByRole("heading", { name: "数据导入" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "录入今天的数据" })).toBeInTheDocument();
+    expect(screen.getByText("先导入，再补录，最后让系统生成今日任务。")).toBeInTheDocument();
+    expect(screen.getByText("1. 导入数据")).toBeInTheDocument();
+    expect(screen.getByText("2. 补充缺失字段")).toBeInTheDocument();
+    expect(screen.getByText("3. 查看系统诊断")).toBeInTheDocument();
     expect(screen.getByText("生意参谋首页核心看板导入")).toBeInTheDocument();
     expect(screen.getByLabelText("上传生意参谋核心看板 xls")).toBeInTheDocument();
     expect(screen.getByText("商品列表导入")).toBeInTheDocument();
@@ -125,7 +128,7 @@ describe("1688 operations assistant UI", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByRole("button", { name: "数据录入" }));
 
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.aoa_to_sheet([
@@ -154,9 +157,9 @@ describe("1688 operations assistant UI", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "规则" }));
+    await user.click(screen.getByRole("button", { name: "规则维护" }));
 
-    expect(screen.getByRole("heading", { name: "规则版本库" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "维护判断规则" })).toBeInTheDocument();
     expect(screen.getByText("找工厂铜牌规则")).toBeInTheDocument();
     expect(screen.getAllByText("发布日期").length).toBeGreaterThan(0);
     expect(screen.getAllByText("2026-05-01").length).toBeGreaterThan(0);
@@ -175,7 +178,7 @@ describe("1688 operations assistant UI", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "规则" }));
+    await user.click(screen.getByRole("button", { name: "规则维护" }));
 
     expect(screen.getByRole("heading", { name: "规则运营后台" })).toBeInTheDocument();
     expect(screen.getByText("当前采用规则 0 条")).toBeInTheDocument();
@@ -204,12 +207,12 @@ describe("1688 operations assistant UI", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "分析" }));
+    await user.click(screen.getByRole("button", { name: "卡点诊断" }));
 
     expect(screen.getByText("补齐 09:00-21:00 首响值班和快捷回复")).toBeInTheDocument();
     expect(screen.getByText("当日旺旺 3 分钟响应率截图")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "复盘" }));
+    await user.click(screen.getByRole("button", { name: "动作复盘" }));
     const afterInput = screen.getByLabelText("回测后 旺旺 3 分钟响应率");
     await user.clear(afterInput);
     await user.type(afterInput, "62");
@@ -223,8 +226,10 @@ describe("1688 operations assistant UI", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "分析" }));
+    await user.click(screen.getByRole("button", { name: "卡点诊断" }));
 
+    expect(screen.getByRole("heading", { name: "店铺哪里掉了？" })).toBeInTheDocument();
+    expect(screen.getByText("先看最大掉点，再决定今天试什么动作。")).toBeInTheDocument();
     expect(screen.getByText("优先级裁判")).toBeInTheDocument();
     expect(screen.getByText("先修利润健康")).toBeInTheDocument();
     expect(screen.getByText("暂停冲定制交易积分和 GMV")).toBeInTheDocument();
@@ -232,14 +237,16 @@ describe("1688 operations assistant UI", () => {
     expect(screen.getByText("低价引流和定制报价没有覆盖真实成本")).toBeInTheDocument();
     expect(screen.getByText("7 天内毛利率回到 18% 以上")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "商品" }));
+    await user.click(screen.getByRole("button", { name: "商品诊断" }));
 
+    expect(screen.getByRole("heading", { name: "哪些商品该加力，哪些该停？" })).toBeInTheDocument();
     expect(screen.getByText("316 商务礼品杯")).toBeInTheDocument();
     expect(screen.getAllByText("定制款").length).toBeGreaterThan(0);
     expect(screen.getAllByText("风险款").length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole("button", { name: "复盘" }));
+    await user.click(screen.getByRole("button", { name: "动作复盘" }));
 
+    expect(screen.getByRole("heading", { name: "这个动作有没有用？" })).toBeInTheDocument();
     expect(screen.getByText("员工仍偏任务执行，需要训练归因、停止和 SOP。")).toBeInTheDocument();
     expect(screen.getByText("本周至少沉淀 1 条有效动作 SOP")).toBeInTheDocument();
   });
@@ -248,7 +255,7 @@ describe("1688 operations assistant UI", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByRole("button", { name: "数据录入" }));
 
     expect(screen.getByRole("heading", { name: "每日经营事实表" })).toBeInTheDocument();
     expect(screen.getByLabelText("总曝光")).toBeInTheDocument();
@@ -267,7 +274,7 @@ describe("1688 operations assistant UI", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByRole("button", { name: "数据录入" }));
     await user.clear(screen.getByLabelText("毛利率"));
     await user.type(screen.getByLabelText("毛利率"), "22");
     await user.clear(screen.getByLabelText("广告消耗"));
@@ -284,9 +291,9 @@ describe("1688 operations assistant UI", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "分析" }));
+    await user.click(screen.getByRole("button", { name: "卡点诊断" }));
 
-    expect(screen.getByRole("heading", { name: "趋势 BI" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "店铺哪里掉了？" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "卡点漏斗" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "今日 Checklist" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "动作回测" })).toBeInTheDocument();
@@ -300,7 +307,7 @@ describe("1688 operations assistant UI", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "分析" }));
+    await user.click(screen.getByRole("button", { name: "卡点诊断" }));
     await user.click(screen.getByRole("checkbox", { name: "已检查 MOQ、拿样、定制、开票、交期是否前置" }));
     await user.clear(screen.getByLabelText("回测后 访客询盘率"));
     await user.type(screen.getByLabelText("回测后 访客询盘率"), "6.1");

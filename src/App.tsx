@@ -41,6 +41,10 @@ import {
 } from "./lib/operations";
 import { parseSycmCoreBoardRows, type SheetRows, type SycmCoreBoardImport } from "./lib/sycmImport";
 import { createDemoStorage, loadAppStorage, saveAppStorage } from "./lib/storage";
+import { PageHeader } from "./components/layout/PageHeader";
+import { Card } from "./components/ui/Card";
+import { MetricCard } from "./components/ui/MetricCard";
+import { StatusBadge } from "./components/ui/StatusBadge";
 import "./styles.css";
 
 type Page =
@@ -60,21 +64,21 @@ type EditableMetric = {
 };
 
 const pageLabels: Record<Page, string> = {
-  command: "今日",
-  data: "数据",
-  analysis: "分析",
-  product: "商品",
-  review: "复盘",
-  rules: "规则"
+  command: "今日任务",
+  data: "数据录入",
+  analysis: "卡点诊断",
+  product: "商品诊断",
+  review: "动作复盘",
+  rules: "规则维护"
 };
 
 const pageMeta: Record<Page, { step: string; detail: string }> = {
-  command: { step: "01", detail: "看今天做什么" },
-  data: { step: "02", detail: "录入和导入" },
-  analysis: { step: "03", detail: "找趋势卡点" },
-  product: { step: "04", detail: "管商品资产" },
-  review: { step: "05", detail: "验证和沉淀" },
-  rules: { step: "06", detail: "维护规则口径" }
+  command: { step: "01", detail: "先做什么" },
+  data: { step: "02", detail: "导入补录" },
+  analysis: { step: "03", detail: "找掉点" },
+  product: { step: "04", detail: "看商品" },
+  review: { step: "05", detail: "验效果" },
+  rules: { step: "06", detail: "管口径" }
 };
 
 const goalOptions: Array<{ id: V2GoalId; label: string }> = [
@@ -390,6 +394,11 @@ export default function App() {
   const v5Loop = useMemo(() => buildV5OperatingLoop(sampleDailyHistory), []);
   const firstAction = actionPlan.actions[0] ?? null;
   const firstChecklistAction = v5Loop.checklist[0] ?? null;
+  const todayPrimaryMetric = commandCenter.primaryBlocker ?? commandCenter.mission.goal;
+  const todayGapLabel =
+    commandCenter.primaryBlocker?.gapLabel.replace(/^差\s*/, "") ?? "已达标";
+  const todayHeroReason =
+    commandCenter.primaryBlocker?.whyItMatters ?? commandCenter.mission.goal.priorityReason;
 
   useEffect(() => {
     saveAppStorage(window.localStorage, {
@@ -523,90 +532,49 @@ export default function App() {
         ))}
       </nav>
 
-      <section className="operation-summary" aria-label="运营摘要">
-        <article className={`summary-card primary ${dashboard.gaps[0]?.priority.toLowerCase() ?? "p3"}`}>
-          <Activity aria-hidden="true" />
-          <span>当前目标</span>
-          <strong>{dashboard.goalLabel}</strong>
-          <small>{dashboard.summary}</small>
-        </article>
-        <article className="summary-card action">
-          <ClipboardList aria-hidden="true" />
-          <span>今日任务</span>
-          <strong>{`${missionCompletedCount}/${commandCenter.mission.actions.length}`}</strong>
-          <small>{commandCenter.mission.goal.title}</small>
-        </article>
-        <article className={`summary-card bottleneck ${commandCenter.primaryBlocker?.priority.toLowerCase() ?? "p3"}`}>
-          <Target aria-hidden="true" />
-          <span>当前卡点</span>
-          <strong>{commandCenter.primaryBlocker?.metricLabel ?? "已达标"}</strong>
-          <small>{commandCenter.primaryBlocker?.gapLabel ?? "进入复盘和 SOP 固化"}</small>
-        </article>
-        <article className="summary-card verify">
-          <RotateCcw aria-hidden="true" />
-          <span>明日验证</span>
-          <strong>{commandCenter.tomorrowCheck.metricLabel}</strong>
-          <small>{commandCenter.tomorrowCheck.question}</small>
-        </article>
-      </section>
-
       {page === "command" && (
-        <section className="page-grid command-grid">
-          <div className="panel task-panel">
-            <div className="section-title">
-              <Target aria-hidden="true" />
-              <h2>今日指挥台</h2>
+        <section className="today-page">
+          <section className="today-hero">
+            <div className="today-hero-copy">
+              <span className="hero-eyebrow">今日唯一主目标</span>
+              <h1>今天先处理：{commandCenter.primaryBlocker?.metricLabel ?? commandCenter.mission.goal.title}</h1>
+              <p className="hero-metric-line">
+                当前 {todayPrimaryMetric.currentLabel}，目标 {todayPrimaryMetric.targetLabel}，差 {todayGapLabel}
+              </p>
+              <p className="hero-reason">原因：{todayHeroReason}</p>
             </div>
-
-            <div className="mission-head">
-              <div className="section-title">
-                <ClipboardList aria-hidden="true" />
-                <h2>今日作战单</h2>
-              </div>
-              <span>{`已完成 ${missionCompletedCount}/${commandCenter.mission.actions.length}`}</span>
+            <div className="today-hero-action">
+              <StatusBadge tone={commandCenter.primaryBlocker ? "danger" : "success"}>
+                {commandCenter.primaryBlocker ? "必须处理" : "已达标"}
+              </StatusBadge>
+              <button className="primary-action" type="button" onClick={() => setPage("data")}>
+                录入今日数据
+              </button>
             </div>
+          </section>
 
-            <article className="mission-goal-card">
-              <span>今日唯一主目标</span>
-              <strong>{commandCenter.mission.goal.title}</strong>
-              <p>{commandCenter.mission.goal.priorityReason}</p>
-              <dl>
-                <dt>当前</dt>
-                <dd>{commandCenter.mission.goal.currentLabel}</dd>
-                <dt>目标</dt>
-                <dd>{commandCenter.mission.goal.targetLabel}</dd>
-              </dl>
-            </article>
+          <section className="summary-grid" aria-label="今日摘要">
+            <MetricCard
+              label="最大卡点"
+              value={commandCenter.primaryBlocker?.metricLabel ?? "无核心卡点"}
+              helper={commandCenter.primaryBlocker?.gapLabel ?? "进入复盘和 SOP 固化"}
+              tone={commandCenter.primaryBlocker ? "danger" : "success"}
+            />
+            <MetricCard
+              label="今日任务数"
+              value={`已完成 ${missionCompletedCount}/${commandCenter.mission.actions.length}`}
+              helper={commandCenter.mission.goal.title}
+              tone="action"
+            />
+            <MetricCard
+              label="明日验证指标"
+              value={commandCenter.tomorrowCheck.metricLabel}
+              helper={commandCenter.tomorrowCheck.question}
+              tone="success"
+            />
+          </section>
 
-            <div className={`command-qualification ${commandCenter.qualification.status}`}>
-              <span>{commandCenter.qualification.label}</span>
-              <strong>{commandCenter.goalLabel}</strong>
-              <p>{commandCenter.qualification.reason}</p>
-            </div>
-
-            <div className="section-title stacked-title">
-              <Activity aria-hidden="true" />
-              <h2>最大卡点</h2>
-            </div>
-            {commandCenter.primaryBlocker ? (
-              <article className={`gap-card ${commandCenter.primaryBlocker.priority.toLowerCase()}`}>
-                <div>
-                  <span>{commandCenter.primaryBlocker.priority}</span>
-                  <strong>{commandCenter.primaryBlocker.metricLabel}</strong>
-                </div>
-                <p>
-                  {commandCenter.primaryBlocker.currentLabel} / 目标 {commandCenter.primaryBlocker.targetLabel}
-                </p>
-                <small>{commandCenter.primaryBlocker.whyItMatters}</small>
-              </article>
-            ) : (
-              <p className="empty-copy">当前核心指标已过线，今天重点进入复盘和 SOP 固化。</p>
-            )}
-
-            <div className="section-title stacked-title">
-              <ClipboardList aria-hidden="true" />
-              <h2>今日 Checklist</h2>
-            </div>
+          <Card title="今日 checklist" eyebrow="只做最少必要动作" tone="action">
             <p className="command-instruction">
               <strong>今天只处理 {commandCenter.todayActions.length} 件事</strong>
               {commandCenter.employeeInstruction.replace(`今天只处理 ${commandCenter.todayActions.length} 件事`, "")}
@@ -641,32 +609,9 @@ export default function App() {
                 </article>
               ))}
             </div>
-          </div>
+          </Card>
 
-          <aside className="panel method-panel">
-            <div className="section-title">
-              <ShieldCheck aria-hidden="true" />
-              <h2>规则依据</h2>
-            </div>
-            <div className={`rule-basis command-rule-basis ${commandCenter.ruleBasis.status}`}>
-              <strong>{commandCenter.ruleBasis.label}</strong>
-              <p>{commandCenter.ruleBasis.detail}</p>
-            </div>
-
-            <div className="section-title stacked-title">
-              <CheckCircle2 aria-hidden="true" />
-              <h2>昨日复盘</h2>
-            </div>
-            <div className="mission-review-card">
-              <span>{commandCenter.mission.yesterdayReview.label}</span>
-              <strong>{commandCenter.mission.yesterdayReview.summary}</strong>
-              <p>{commandCenter.mission.yesterdayReview.decision}</p>
-            </div>
-
-            <div className="section-title stacked-title">
-              <RotateCcw aria-hidden="true" />
-              <h2>明日验证</h2>
-            </div>
+          <Card title="明日验证" eyebrow="做完之后看这个" tone="success">
             <div className="tomorrow-check">
               <span>{commandCenter.tomorrowCheck.metricLabel}</span>
               <strong>{commandCenter.tomorrowCheck.question}</strong>
@@ -674,12 +619,44 @@ export default function App() {
                 当前 {commandCenter.tomorrowCheck.currentLabel} / 目标 {commandCenter.tomorrowCheck.targetLabel}
               </p>
             </div>
+          </Card>
 
-            <button className="primary-action" type="button" onClick={() => setPage("data")}>
-              录入今日数据
-            </button>
-          </aside>
+          <details className="soft-details">
+            <summary>规则依据</summary>
+            <div className={`rule-basis command-rule-basis ${commandCenter.ruleBasis.status}`}>
+              <strong>
+                {commandCenter.ruleBasis.status === "active" ? commandCenter.ruleBasis.label : "规则来源状态待维护"}
+              </strong>
+              <p>当前规则用于解释目标和动作，完整来源状态请到规则维护页查看。</p>
+            </div>
+          </details>
+
+          <details className="soft-details">
+            <summary>昨日复盘</summary>
+            <div className="mission-review-card">
+              <span>{commandCenter.mission.yesterdayReview.label}</span>
+              <strong>{commandCenter.mission.yesterdayReview.summary}</strong>
+              <p>{commandCenter.mission.yesterdayReview.decision}</p>
+            </div>
+          </details>
         </section>
+      )}
+
+      {page === "data" && (
+        <>
+          <PageHeader title="录入今天的数据" description="先导入，再补录，最后让系统生成今日任务。" />
+          <section className="step-grid" aria-label="数据录入步骤">
+            <Card title="1. 导入数据" tone="action">
+              <p>先上传生意参谋 xls，减少手填成本。</p>
+            </Card>
+            <Card title="2. 补充缺失字段" tone="warning">
+              <p>补齐询盘、毛利率等平台表格没有覆盖的经营事实。</p>
+            </Card>
+            <Card title="3. 查看系统诊断" tone="success">
+              <p>保存后回到今日任务，看系统重新生成的卡点和动作。</p>
+            </Card>
+          </section>
+        </>
       )}
 
       {page === "data" && (
@@ -687,7 +664,7 @@ export default function App() {
           <div className="panel task-panel">
             <div className="section-title">
               <ClipboardList aria-hidden="true" />
-              <h2>V2 数据录入</h2>
+              <h2>补充缺失字段</h2>
             </div>
             <div className="entry-list">
               {editableMetrics.map((metric) => (
@@ -930,6 +907,34 @@ export default function App() {
       )}
 
       {page === "analysis" && (
+        <>
+          <PageHeader title="店铺哪里掉了？" description="先看最大掉点，再决定今天试什么动作。" />
+          <section className="priority-grid" aria-label="卡点诊断优先区">
+            <MetricCard
+              label="漏斗"
+              value={`${v5Loop.primaryBottleneck.label}瓶颈`}
+              helper={v5Loop.primaryBottleneck.diagnosis}
+              tone="warning"
+            />
+            <MetricCard
+              label="最大卡点"
+              value={commandCenter.primaryBlocker?.metricLabel ?? v5Loop.primaryBottleneck.label}
+              helper={commandCenter.primaryBlocker?.gapLabel ?? "进入观察"}
+              tone={commandCenter.primaryBlocker ? "danger" : "success"}
+            />
+            <MetricCard
+              label="建议实验"
+              value={v3Review.experimentCards[0]?.title ?? "先补数据"}
+              helper={
+                v3Review.experimentCards[0] ? `目标：${v3Review.experimentCards[0].expectedChange}` : "缺数据时不强行判断"
+              }
+              tone="action"
+            />
+          </section>
+        </>
+      )}
+
+      {page === "analysis" && (
         <section className="v5-grid">
           <div className="panel">
             <div className="section-title">
@@ -1047,6 +1052,13 @@ export default function App() {
             )}
           </aside>
         </section>
+      )}
+
+      {page === "rules" && (
+        <PageHeader
+          title="维护判断规则"
+          description="这是后台维护页面，用来管理平台规则口径，不是员工每天必须处理的主流程。"
+        />
       )}
 
       {page === "rules" && (
@@ -1255,6 +1267,10 @@ export default function App() {
       )}
 
       {page === "review" && (
+        <PageHeader title="这个动作有没有用？" description="先记录当前回测，再决定是否沉淀成 SOP。" />
+      )}
+
+      {page === "review" && (
         <section className="page-grid review-grid">
           <div className="panel backtest-panel">
             <div className="section-title">
@@ -1361,6 +1377,10 @@ export default function App() {
             ))}
           </aside>
         </section>
+      )}
+
+      {page === "product" && (
+        <PageHeader title="哪些商品该加力，哪些该停？" description="先看商品组合，再处理风险款和可放大的定制款。" />
       )}
 
       {page === "product" && (
