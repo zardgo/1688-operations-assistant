@@ -2,17 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   backtestV2Action,
   backtestV5ChecklistAction,
-  buildV2ActionPlan,
-  buildV2GoalDashboard,
-  buildV3OperatingReview,
-  buildV4DailyOperatingReview,
-  buildV5OperatingLoop,
-  buildV8CommandCenter,
-  buildResponseRateBenchmark,
   bindRuleVersionToGoal,
   adoptRuleVersion,
   createDraftRuleVersion,
-  getActiveRuleVersionsForGoal,
   getDefaultRuleVersions,
   type V2Action,
   type V2BacktestResult,
@@ -25,7 +17,8 @@ import {
   type V5ChecklistBacktestResult
 } from "./lib/operations";
 import { parseSycmCoreBoardRows, type SheetRows, type SycmCoreBoardImport } from "./lib/sycmImport";
-import { buildDataQualityReport, buildDiagnosisMeta, type DataSourceType } from "./lib/dataQuality";
+import { type DataSourceType } from "./lib/dataQuality";
+import { buildOperationContext } from "./lib/operationContext";
 import {
   createDemoStorage,
   loadAppStorage,
@@ -44,8 +37,6 @@ import { ReviewPage } from "./pages/ReviewPage";
 import { RulesPage } from "./pages/RulesPage";
 import { TrafficMapPage } from "./pages/TrafficMapPage";
 import { officialArticles } from "./data/knowledge/officialArticles";
-import { getKnowledgeContextForMetric } from "./lib/knowledge/selectors";
-import type { MetricKnowledgeContext } from "./lib/knowledge/selectors";
 import type { Page } from "./pages/pageConfig";
 import "./styles.css";
 
@@ -365,86 +356,60 @@ export default function App() {
       })),
     [values]
   );
-  const dashboard = useMemo(() => buildV2GoalDashboard(goalId, readings, ruleVersions), [goalId, readings, ruleVersions]);
-  const actionPlan = useMemo(() => buildV2ActionPlan(dashboard), [dashboard]);
-  const activeRules = useMemo(
-    () => getActiveRuleVersionsForGoal(goalId, ruleVersions),
-    [goalId, ruleVersions]
-  );
-  const dataQualityReport = useMemo(
+  const operationContext = useMemo(
     () =>
-      buildDataQualityReport({
-        sourceType: dataSourceType,
-        importedFields,
-        fallbackFields,
-        missingFields,
-        lastUpdatedAt
-      }),
-    [dataSourceType, fallbackFields, importedFields, lastUpdatedAt, missingFields]
-  );
-  const diagnosisMeta = useMemo(
-    () =>
-      buildDiagnosisMeta({
-        dataQuality: dataQualityReport,
-        activeRuleCount: activeRules.length,
-        hasGap: dashboard.gaps.length > 0
-      }),
-    [activeRules.length, dashboard.gaps.length, dataQualityReport]
-  );
-  const commandCenter = useMemo(
-    () => buildV8CommandCenter(dashboard, actionPlan, activeRules),
-    [dashboard, actionPlan, activeRules]
-  );
-  const activeMission = useMemo(
-    () => buildMissionInstance(commandCenter, goalId, dailyFacts.date),
-    [commandCenter, dailyFacts.date, goalId]
-  );
-  const missionCompletedCount = commandCenter.mission.actions.filter((action) =>
-    executionLogs.some((log) => log.missionId === activeMission.id && log.id.endsWith(`:${action.id}`) && log.completed)
-  ).length;
-  const v3Review = useMemo(
-    () =>
-      buildV3OperatingReview({
+      buildOperationContext({
         goalId,
-        readings,
+        metricReadings: readings,
+        latestDailyFact: dailyFacts,
+        dailyHistory: sampleDailyHistory,
         skuFacts: sampleSkuFacts,
-        capability: sampleCapability
+        capability: sampleCapability,
+        ruleVersions,
+        dataQualityInput: {
+          sourceType: dataSourceType,
+          importedFields,
+          fallbackFields,
+          missingFields,
+          lastUpdatedAt
+        },
+        executionLogs,
+        backtestResults: storedBacktestResults,
+        sopCandidates: []
       }),
-    [goalId, readings]
+    [
+      dailyFacts,
+      dataSourceType,
+      executionLogs,
+      fallbackFields,
+      goalId,
+      importedFields,
+      lastUpdatedAt,
+      missingFields,
+      readings,
+      ruleVersions,
+      storedBacktestResults
+    ]
   );
-  const v4Review = useMemo(() => buildV4DailyOperatingReview(dailyFacts), [dailyFacts]);
-  const v5Loop = useMemo(() => buildV5OperatingLoop(sampleDailyHistory), []);
-  const firstAction = actionPlan.actions[0] ?? null;
-  const firstChecklistAction = v5Loop.checklist[0] ?? null;
-  const todayPrimaryMetric = commandCenter.primaryBlocker ?? commandCenter.mission.goal;
-  const todayGapLabel =
-    commandCenter.primaryBlocker?.gapLabel.replace(/^差\s*/, "") ?? "已达标";
-  const todayHeroReason =
-    commandCenter.primaryBlocker?.whyItMatters ?? commandCenter.mission.goal.priorityReason;
-  const responseRateTarget =
-    dashboard.readings.find((reading) => reading.id === "ww_3min_response_rate")?.target ?? 0.6;
-  const responseRateBenchmark = useMemo(
-    () =>
-      buildResponseRateBenchmark({
-        currentRate: values.ww_3min_response_rate,
-        platformTargetRate: responseRateTarget
-      }),
-    [responseRateTarget, values.ww_3min_response_rate]
-  );
-  const actionKnowledgeContexts = useMemo<Record<string, MetricKnowledgeContext>>(
-    () =>
-      Object.fromEntries(
-        commandCenter.todayActions.map((action) => [action.id, getKnowledgeContextForMetric(action.targetMetricId)])
-      ),
-    [commandCenter.todayActions]
-  );
-  const primaryKnowledgeContext = useMemo(
-    () =>
-      commandCenter.primaryBlocker
-        ? getKnowledgeContextForMetric(commandCenter.primaryBlocker.metricId)
-        : getKnowledgeContextForMetric("weekly_sop_count"),
-    [commandCenter.primaryBlocker]
-  );
+  const dashboard = operationContext.diagnosis.dashboard;
+  const actionPlan = operationContext.diagnosis.actionPlan;
+  const activeRules = operationContext.rules.activeRules;
+  const dataQualityReport = operationContext.data.dataQuality;
+  const diagnosisMeta = operationContext.diagnosis.diagnosisMeta;
+  const commandCenter = operationContext.mission.commandCenter;
+  const activeMission = operationContext.mission.activeMission;
+  const missionCompletedCount = operationContext.mission.missionCompletedCount;
+  const v3Review = operationContext.diagnosis.v3Review;
+  const v4Review = operationContext.diagnosis.v4Review;
+  const v5Loop = operationContext.diagnosis.v5Loop;
+  const firstAction = operationContext.mission.firstAction;
+  const firstChecklistAction = operationContext.mission.firstChecklistAction;
+  const todayPrimaryMetric = operationContext.mission.todayPrimaryMetric;
+  const todayGapLabel = operationContext.mission.todayGapLabel;
+  const todayHeroReason = operationContext.mission.todayHeroReason;
+  const responseRateBenchmark = operationContext.diagnosis.responseRateBenchmark;
+  const actionKnowledgeContexts = operationContext.knowledge.actionKnowledgeContexts;
+  const primaryKnowledgeContext = operationContext.knowledge.primaryKnowledgeContext;
 
   useEffect(() => {
     setMissionInstances((current) =>
@@ -720,37 +685,6 @@ function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
 
 function goalLabel(goalId: V2GoalId): string {
   return goalOptions.find((goal) => goal.id === goalId)?.label ?? goalId;
-}
-
-function buildMissionInstance(commandCenter: ReturnType<typeof buildV8CommandCenter>, goalId: V2GoalId, date: string): MissionInstance {
-  const targetMetricId = commandCenter.tomorrowCheck.metricId ?? commandCenter.todayActions[0]?.targetMetricId ?? "weekly_sop_count";
-  return {
-    id: `${date}:${goalId}:${commandCenter.primaryBlocker?.metricId ?? "sop_review"}`,
-    date,
-    goalId,
-    bottleneckId: commandCenter.primaryBlocker?.metricId ?? "sop_review",
-    source: "system",
-    status: "pending",
-    title: commandCenter.mission.goal.title,
-    targetMetricId,
-    verifyDate: date,
-    generatedFrom: {},
-    actions: commandCenter.mission.actions.map((action) => ({
-      actionId: action.id,
-      title: action.title,
-      targetMetricId: commandCenter.todayActions.find((item) => item.id === action.id)?.targetMetricId ?? targetMetricId,
-      owner: action.owner,
-      dueTime: action.dueTime
-    })),
-    backtestPlan: {
-      baselineDate: date,
-      baselineValue: commandCenter.primaryBlocker?.current ?? null,
-      expectedDirection: "increase",
-      targetMetricId,
-      verifyDate: date,
-      successRule: "improved"
-    }
-  };
 }
 
 function upsertExecutionLog(
