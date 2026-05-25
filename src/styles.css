@@ -2092,22 +2092,35 @@ body {
 }
 
 .app-frame {
-  --bg: #0d1411;
-  --panel: #151c18;
-  --text: #eaf1ed;
-  --muted: #96a39d;
-  --border: rgba(219, 232, 225, 0.12);
-  --danger: #dd7b3a;
-  --warning: #d0a145;
-  --success: #77d6a3;
-  --action: #8fc7ff;
+  --bg: #0b0f0d;
+  --panel: #151a17;
+  --panel-soft: #1a211d;
+  --panel-subtle: #101612;
+  --text: #e7ede8;
+  --muted: #9aa69f;
+  --border: rgba(214, 226, 218, 0.13);
+  --danger: #df7a56;
+  --warning: #d7ad58;
+  --success: #5ed69a;
+  --action: #7aa7d9;
+  --ink: var(--text);
+  --line: var(--border);
+  --wash: var(--panel-soft);
+  --risk: var(--danger);
+  --watch: var(--warning);
+  --green: var(--success);
+  --red: var(--danger);
+  --amber: var(--warning);
+  --blue: var(--action);
+  --active: #23372d;
+  --dark: #0b0f0d;
   --shadow-card: 0 16px 44px rgba(0, 0, 0, 0.22);
   display: grid;
   grid-template-columns: 286px minmax(0, 1fr);
   min-height: 100vh;
   color: var(--text);
   background:
-    linear-gradient(90deg, #101a16 0 286px, transparent 286px),
+    linear-gradient(90deg, #0f1512 0 286px, transparent 286px),
     var(--bg);
 }
 
@@ -2122,7 +2135,7 @@ body {
   padding: 24px 18px;
   overflow-y: auto;
   color: #e9f1ec;
-  background: #101a16;
+  background: #0f1512;
   border-right: 1px solid rgba(221, 232, 226, 0.12);
 }
 
@@ -2232,13 +2245,13 @@ body {
 .app-sidebar .mode-tabs button.active {
   color: #ffffff;
   background: rgba(139, 216, 177, 0.14);
-  border-color: rgba(139, 216, 177, 0.36);
+  border-color: rgba(94, 214, 154, 0.36);
 }
 
 .app-sidebar .mode-tabs button.active span {
-  color: #0f1a15;
-  background: #8bd8b1;
-  border-color: #8bd8b1;
+  color: #07100b;
+  background: var(--success);
+  border-color: var(--success);
 }
 
 .app-sidebar .mode-tabs button.active small {
@@ -2280,8 +2293,8 @@ body {
   min-width: 0;
   padding: 24px clamp(18px, 3vw, 36px) 48px;
   background:
-    radial-gradient(circle at 52% 0%, rgba(119, 214, 163, 0.08), transparent 32%),
-    #0d1411;
+    radial-gradient(circle at 52% 0%, rgba(94, 214, 154, 0.07), transparent 32%),
+    var(--bg);
 }
 
 .workspace-header {
@@ -2378,8 +2391,8 @@ body {
 }
 
 .control-group span.active {
-  color: #0d1411;
-  background: #77d6a3;
+  color: #07100b;
+  background: var(--success);
 }
 
 .workspace-metric-strip {
@@ -2396,7 +2409,7 @@ body {
   padding: 18px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
-    #151c18;
+    var(--panel);
   border: 1px solid rgba(219, 232, 225, 0.14);
   border-top-color: rgba(119, 214, 163, 0.5);
   border-radius: 14px;
@@ -2457,7 +2470,7 @@ body {
 }
 
 .briefing-note span {
-  color: #77d6a3;
+  color: var(--success);
   font-size: 12px;
   font-weight: 900;
 }
@@ -2504,9 +2517,9 @@ body {
   align-items: center;
   min-height: 26px;
   padding: 0 10px;
-  color: #0f1a15;
-  background: #77d6a3;
-  border: 1px solid rgba(119, 214, 163, 0.28);
+  color: #07100b;
+  background: var(--success);
+  border: 1px solid rgba(94, 214, 154, 0.28);
   border-radius: 999px;
 }
 
@@ -2541,7 +2554,7 @@ body {
 .app-frame textarea,
 .app-frame select {
   color: var(--text);
-  background: #111a16;
+  background: var(--panel-subtle);
   border-color: var(--border);
 }
 
@@ -2551,15 +2564,112 @@ body {
 }
 
 .app-frame .primary-action {
-  color: #07130e;
-  background: #77d6a3;
+  color: #07100b;
+  background: var(--success);
 }
 
 .app-frame .today-hero {
   background:
-    linear-gradient(145deg, rgba(119, 214, 163, 0.16), transparent 44%),
-    #151c18;
-  border-color: rgba(119, 214, 163, 0.2);
+    linear-gradient(145deg, rgba(94, 214, 154, 0.14), transparent 44%),
+    var(--panel);
+  border-color: rgba(94, 214, 154, 0.2);
+}
+
+.app-frame .panel,
+.app-frame .import-card,
+.app-frame .import-result,
+.app-frame .daily-metric-card,
+.app-frame .metric-input-row,
+.app-frame .cadence-list p,
+.app-frame .official-list p,
+.app-frame .rule-card,
+.app-frame .decision-card,
+.app-frame .hypothesis-card,
+.app-frame .experiment-card,
+.app-frame .sku-card,
+.app-frame .layer-list article,
+.app-frame .v5-trend-card,
+.app-frame .v5-funnel-stage,
+.app-frame .v5-check-item,
+.app-frame .v5-bottleneck,
+.app-frame .v5-result-box {
+  color: var(--text);
+  background: var(--panel);
+  border-color: rgba(219, 232, 225, 0.12);
+}
+
+.app-frame .metric-input-row {
+  grid-template-columns: minmax(0, 1fr) 124px;
+  background:
+    linear-gradient(90deg, rgba(94, 214, 154, 0.035), transparent 42%),
+    var(--panel-soft);
+}
+
+.app-frame .metric-input-row strong,
+.app-frame .import-card-head strong,
+.app-frame .import-result strong,
+.app-frame .daily-metric-card strong {
+  color: #f5fbf7;
+}
+
+.app-frame .metric-input-row small,
+.app-frame .import-card-head p,
+.app-frame .import-result p,
+.app-frame .cadence-list p,
+.app-frame .daily-metric-card span {
+  color: rgba(234, 241, 237, 0.62);
+}
+
+.app-frame .metric-input-row div {
+  background: var(--panel-subtle);
+  border-color: rgba(219, 232, 225, 0.14);
+}
+
+.app-frame .metric-input-row input {
+  color: #f7fff9;
+  background: transparent;
+}
+
+.app-frame .metric-input-row em {
+  color: rgba(234, 241, 237, 0.58);
+}
+
+.app-frame .import-card,
+.app-frame .import-result {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent),
+    var(--panel);
+}
+
+.app-frame .primary-import-card {
+  border-left-color: rgba(143, 199, 255, 0.72);
+}
+
+.app-frame .file-upload {
+  color: #dff5ea;
+  background: rgba(122, 167, 217, 0.1);
+  border-color: rgba(122, 167, 217, 0.25);
+}
+
+.app-frame .file-upload input {
+  color: #eaf1ed;
+  background: transparent;
+}
+
+.app-frame .import-field-grid span {
+  color: rgba(234, 241, 237, 0.78);
+  background: var(--panel-subtle);
+  border-color: rgba(219, 232, 225, 0.12);
+}
+
+.app-frame .daily-metric-card {
+  background:
+    linear-gradient(180deg, rgba(94, 214, 154, 0.04), transparent),
+    var(--panel);
+}
+
+.app-frame .daily-metric-card strong {
+  color: rgba(94, 214, 154, 0.92);
 }
 
 @media (max-width: 1080px) {
@@ -2619,12 +2729,28 @@ body {
     font-size: 20px;
   }
 
+  .app-sidebar .mode-tabs.v2-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    overflow: visible;
+  }
+
   .app-sidebar .mode-tabs button,
   .app-sidebar .mode-tabs.v2-tabs button {
-    flex-basis: 128px;
+    width: 100%;
+    min-width: 0;
     grid-template-columns: 28px minmax(0, 1fr);
     min-height: 46px;
     padding: 8px 10px;
+  }
+
+  .app-sidebar .mode-tabs button strong {
+    white-space: nowrap;
+  }
+
+  .app-sidebar .mode-tabs button small {
+    white-space: nowrap;
   }
 
   .workspace-header {
