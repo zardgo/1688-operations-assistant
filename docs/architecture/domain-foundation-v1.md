@@ -6,6 +6,11 @@
 
 - `docs/plans/2026-05-25-domain-foundation-v1-implementation-plan.md`
 
+关联基础文档：
+
+- `docs/foundation/03-mapping-system.md`
+- `docs/plans/2026-05-24-1688-modular-architecture-and-build-order.md`
+
 核心判断：
 
 ```text

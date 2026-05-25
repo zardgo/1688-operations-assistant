@@ -8,6 +8,11 @@
 
 **Tech Stack:** React、TypeScript、Vitest、Testing Library、Markdown 架构文档、TypeScript seed 配置。
 
+**Related Docs:**
+- `docs/architecture/domain-foundation-v1.md`
+- `docs/foundation/03-mapping-system.md`
+- `docs/plans/2026-05-24-1688-modular-architecture-and-build-order.md`
+
 ## Scope
 
 第一批只做基座，不做 UI 重设计，不接 API，不扩展完整后台配置。

@@ -7,6 +7,8 @@
 - `docs/architecture/domain-foundation-v1.md`
 - `docs/plans/2026-05-25-domain-foundation-v1-implementation-plan.md`
 
+其中 `docs/architecture/domain-foundation-v1.md` 是领域基座真源，`docs/plans/2026-05-25-domain-foundation-v1-implementation-plan.md` 是对应开发落地计划。
+
 核心链路：
 
 ```text
