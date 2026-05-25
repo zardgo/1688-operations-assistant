@@ -1,21 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Activity,
-  BarChart3,
-  BookOpenCheck,
-  Brain,
-  CheckCircle2,
-  ClipboardList,
-  Factory,
-  FileSpreadsheet,
-  GraduationCap,
-  ShieldCheck,
-  PackageCheck,
-  RotateCcw,
-  Target,
-  Upload
-} from "lucide-react";
-import {
   backtestV2Action,
   backtestV5ChecklistAction,
   buildV2ActionPlan,
@@ -41,19 +25,15 @@ import {
 } from "./lib/operations";
 import { parseSycmCoreBoardRows, type SheetRows, type SycmCoreBoardImport } from "./lib/sycmImport";
 import { createDemoStorage, loadAppStorage, saveAppStorage } from "./lib/storage";
-import { PageHeader } from "./components/layout/PageHeader";
-import { Card } from "./components/ui/Card";
-import { MetricCard } from "./components/ui/MetricCard";
-import { StatusBadge } from "./components/ui/StatusBadge";
+import { MainNav } from "./components/layout/MainNav";
+import { AnalysisPage } from "./pages/AnalysisPage";
+import { CommandPage } from "./pages/CommandPage";
+import { DataPage } from "./pages/DataPage";
+import { ProductPage } from "./pages/ProductPage";
+import { ReviewPage } from "./pages/ReviewPage";
+import { RulesPage } from "./pages/RulesPage";
+import type { Page } from "./pages/pageConfig";
 import "./styles.css";
-
-type Page =
-  | "command"
-  | "data"
-  | "analysis"
-  | "product"
-  | "review"
-  | "rules";
 
 type EditableMetric = {
   id: V2MetricId;
@@ -61,24 +41,6 @@ type EditableMetric = {
   helper: string;
   unit: "%" | "款" | "分";
   period: string;
-};
-
-const pageLabels: Record<Page, string> = {
-  command: "今日任务",
-  data: "数据录入",
-  analysis: "卡点诊断",
-  product: "商品诊断",
-  review: "动作复盘",
-  rules: "规则维护"
-};
-
-const pageMeta: Record<Page, { step: string; detail: string }> = {
-  command: { step: "01", detail: "先做什么" },
-  data: { step: "02", detail: "导入补录" },
-  analysis: { step: "03", detail: "找掉点" },
-  product: { step: "04", detail: "看商品" },
-  review: { step: "05", detail: "验效果" },
-  rules: { step: "06", detail: "管口径" }
 };
 
 const goalOptions: Array<{ id: V2GoalId; label: string }> = [
@@ -516,982 +478,81 @@ export default function App() {
         </label>
       </header>
 
-      <nav className="mode-tabs v2-tabs" aria-label="主导航">
-        {(Object.keys(pageLabels) as Page[]).map((key) => (
-          <button
-            aria-label={pageLabels[key]}
-            className={page === key ? "active" : ""}
-            key={key}
-            type="button"
-            onClick={() => setPage(key)}
-          >
-            <span>{pageMeta[key].step}</span>
-            <strong>{pageLabels[key]}</strong>
-            <small>{pageMeta[key].detail}</small>
-          </button>
-        ))}
-      </nav>
+      <MainNav page={page} onChangePage={setPage} />
 
-      {page === "command" && (
-        <section className="today-page">
-          <section className="today-hero">
-            <div className="today-hero-copy">
-              <span className="hero-eyebrow">今日唯一主目标</span>
-              <h1>今天先处理：{commandCenter.primaryBlocker?.metricLabel ?? commandCenter.mission.goal.title}</h1>
-              <p className="hero-metric-line">
-                当前 {todayPrimaryMetric.currentLabel}，目标 {todayPrimaryMetric.targetLabel}，差 {todayGapLabel}
-              </p>
-              <p className="hero-reason">原因：{todayHeroReason}</p>
-            </div>
-            <div className="today-hero-action">
-              <StatusBadge tone={commandCenter.primaryBlocker ? "danger" : "success"}>
-                {commandCenter.primaryBlocker ? "必须处理" : "已达标"}
-              </StatusBadge>
-              <button className="primary-action" type="button" onClick={() => setPage("data")}>
-                录入今日数据
-              </button>
-            </div>
-          </section>
-
-          <section className="summary-grid" aria-label="今日摘要">
-            <MetricCard
-              label="最大卡点"
-              value={commandCenter.primaryBlocker?.metricLabel ?? "无核心卡点"}
-              helper={commandCenter.primaryBlocker?.gapLabel ?? "进入复盘和 SOP 固化"}
-              tone={commandCenter.primaryBlocker ? "danger" : "success"}
-            />
-            <MetricCard
-              label="今日任务数"
-              value={`已完成 ${missionCompletedCount}/${commandCenter.mission.actions.length}`}
-              helper={commandCenter.mission.goal.title}
-              tone="action"
-            />
-            <MetricCard
-              label="明日验证指标"
-              value={commandCenter.tomorrowCheck.metricLabel}
-              helper={commandCenter.tomorrowCheck.question}
-              tone="success"
-            />
-          </section>
-
-          <Card title="今日 checklist" eyebrow="只做最少必要动作" tone="action">
-            <p className="command-instruction">
-              <strong>今天只处理 {commandCenter.todayActions.length} 件事</strong>
-              {commandCenter.employeeInstruction.replace(`今天只处理 ${commandCenter.todayActions.length} 件事`, "")}
-            </p>
-            <div className="task-list command-task-list">
-              {commandCenter.mission.actions.map((action) => (
-                <article className={`task-card mission-action-card ${action.priority.toLowerCase()}`} key={action.id}>
-                  <div className="task-head">
-                    <span>{action.priority}</span>
-                    <strong>{action.title}</strong>
-                  </div>
-                  <div className="mission-action-meta">
-                    <small>负责人：{action.owner}</small>
-                    <small>截止：{action.dueTime}</small>
-                    <small>指标：{action.targetMetricLabel}</small>
-                  </div>
-                  <p>{action.method}</p>
-                  <label className="mission-check">
-                    <input
-                      checked={completedMissionActionIds.includes(action.id)}
-                      type="checkbox"
-                      onChange={() => toggleMissionAction(action.id)}
-                    />
-                    <span>{action.checkLabel}</span>
-                  </label>
-                  <dl>
-                    <dt>明日验证</dt>
-                    <dd>{action.expectedImpact}</dd>
-                    <dt>备注</dt>
-                    <dd>{action.notePrompt}</dd>
-                  </dl>
-                </article>
-              ))}
-            </div>
-          </Card>
-
-          <Card title="明日验证" eyebrow="做完之后看这个" tone="success">
-            <div className="tomorrow-check">
-              <span>{commandCenter.tomorrowCheck.metricLabel}</span>
-              <strong>{commandCenter.tomorrowCheck.question}</strong>
-              <p>
-                当前 {commandCenter.tomorrowCheck.currentLabel} / 目标 {commandCenter.tomorrowCheck.targetLabel}
-              </p>
-            </div>
-          </Card>
-
-          <details className="soft-details">
-            <summary>规则依据</summary>
-            <div className={`rule-basis command-rule-basis ${commandCenter.ruleBasis.status}`}>
-              <strong>
-                {commandCenter.ruleBasis.status === "active" ? commandCenter.ruleBasis.label : "规则来源状态待维护"}
-              </strong>
-              <p>当前规则用于解释目标和动作，完整来源状态请到规则维护页查看。</p>
-            </div>
-          </details>
-
-          <details className="soft-details">
-            <summary>昨日复盘</summary>
-            <div className="mission-review-card">
-              <span>{commandCenter.mission.yesterdayReview.label}</span>
-              <strong>{commandCenter.mission.yesterdayReview.summary}</strong>
-              <p>{commandCenter.mission.yesterdayReview.decision}</p>
-            </div>
-          </details>
-        </section>
-      )}
-
-      {page === "data" && (
-        <>
-          <PageHeader title="录入今天的数据" description="先导入，再补录，最后让系统生成今日任务。" />
-          <section className="step-grid" aria-label="数据录入步骤">
-            <Card title="1. 导入数据" tone="action">
-              <p>先上传生意参谋 xls，减少手填成本。</p>
-            </Card>
-            <Card title="2. 补充缺失字段" tone="warning">
-              <p>补齐询盘、毛利率等平台表格没有覆盖的经营事实。</p>
-            </Card>
-            <Card title="3. 查看系统诊断" tone="success">
-              <p>保存后回到今日任务，看系统重新生成的卡点和动作。</p>
-            </Card>
-          </section>
-        </>
-      )}
-
-      {page === "data" && (
-        <section className="page-grid entry-grid">
-          <div className="panel task-panel">
-            <div className="section-title">
-              <ClipboardList aria-hidden="true" />
-              <h2>补充缺失字段</h2>
-            </div>
-            <div className="entry-list">
-              {editableMetrics.map((metric) => (
-                <label className="metric-input-row" key={metric.id}>
-                  <span>
-                    <strong>{metric.label}</strong>
-                    <small>{metric.helper}</small>
-                  </span>
-                  <div>
-                    <input
-                      aria-label={metric.label}
-                      inputMode="decimal"
-                      type="number"
-                      value={formatInputValue(values[metric.id], metric.unit)}
-                      onChange={(event) => updateMetric(metric, event.target.value)}
-                    />
-                    <em>{metric.unit}</em>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-          <aside className="panel method-panel">
-            <div className="section-title">
-              <Factory aria-hidden="true" />
-              <h2>录入节奏</h2>
-            </div>
-            <div className="cadence-list">
-              <p><strong>每日</strong> 响应率、履约率、积分、合约支付。</p>
-              <p><strong>每周</strong> 毛利、售后归因、有效动作。</p>
-              <p><strong>每月</strong> 小单定制动销商品数和牌级进度。</p>
-            </div>
-          </aside>
-        </section>
-      )}
-
-      {page === "data" && (
-        <section className="page-grid import-grid">
-          <div className="panel task-panel">
-            <div className="section-title">
-              <Upload aria-hidden="true" />
-              <h2>数据导入</h2>
-            </div>
-
-            <div className="import-card primary-import-card">
-              <div className="import-card-head">
-                <FileSpreadsheet aria-hidden="true" />
-                <div>
-                  <strong>生意参谋首页核心看板导入</strong>
-                  <p>支持日 / 周 / 月下载的 xls、xlsx，把店铺整体数据导入每日经营事实表。</p>
-                </div>
-              </div>
-              <label className="file-upload">
-                <span>上传生意参谋核心看板 xls</span>
-                <input
-                  accept=".xls,.xlsx"
-                  aria-label="上传生意参谋核心看板 xls"
-                  type="file"
-                  onChange={(event) => {
-                    const file = event.currentTarget.files?.[0];
-                    if (file) void importSycmCoreBoard(file);
-                    event.currentTarget.value = "";
-                  }}
-                />
-              </label>
-              <div className="import-field-grid">
-                <span>展现次数</span>
-                <span>广告展现</span>
-                <span>访客数</span>
-                <span>支付金额</span>
-                <span>支付订单</span>
-                <span>推广消耗</span>
-              </div>
-            </div>
-
-            <div className="import-card">
-              <div className="import-card-head">
-                <PackageCheck aria-hidden="true" />
-                <div>
-                  <strong>商品列表导入</strong>
-                  <p>先接 Excel / 复制表格，截图 OCR 放到下一轮。</p>
-                </div>
-              </div>
-              <div className="import-field-grid">
-                <span>商品 ID</span>
-                <span>商品名称</span>
-                <span>价格</span>
-                <span>库存</span>
-                <span>7 天曝光</span>
-                <span>30 天访客</span>
-                <span>咨询数</span>
-                <span>30 天 GMV</span>
-                <span>AI 诊断</span>
-              </div>
-            </div>
-          </div>
-
-          <aside className="panel method-panel">
-            <div className="section-title">
-              <BarChart3 aria-hidden="true" />
-              <h2>导入结果</h2>
-            </div>
-            {sycmImportStatus?.result ? (
-              <div className="import-result">
-                <span>已导入</span>
-                <strong>{sycmImportStatus.fileName}</strong>
-                <p>
-                  识别 {sycmImportStatus.result.rowCount} 行数据，最新日期 {sycmImportStatus.result.fact.date}。
-                </p>
-                <dl>
-                  <dt>总曝光</dt>
-                  <dd>{sycmImportStatus.result.fact.totalExposure}</dd>
-                  <dt>广告消耗</dt>
-                  <dd>{formatMoney(sycmImportStatus.result.fact.adSpend)}</dd>
-                  <dt>支付金额</dt>
-                  <dd>{formatMoney(sycmImportStatus.result.fact.paymentAmount)}</dd>
-                  <dt>保留手填字段</dt>
-                  <dd>{formatMissingImportFields(sycmImportStatus.result.missingFields)}</dd>
-                </dl>
-              </div>
-            ) : sycmImportStatus?.error ? (
-              <div className="import-result error">
-                <span>导入失败</span>
-                <strong>{sycmImportStatus.fileName}</strong>
-                <p>{sycmImportStatus.error}</p>
-              </div>
-            ) : (
-              <p className="empty-copy">
-                上传生意参谋首页核心看板后，系统会自动更新每日经营事实表，并用现有异常归因逻辑生成卡点。
-              </p>
-            )}
-
-            <div className="section-title stacked-title">
-              <ClipboardList aria-hidden="true" />
-              <h2>导入节奏</h2>
-            </div>
-            <div className="cadence-list">
-              <p><strong>每日</strong> 导入昨天数据，生成今天 checklist。</p>
-              <p><strong>每周</strong> 看趋势和动作是否有效。</p>
-              <p><strong>每月</strong> 校准目标、预算和商品结构。</p>
-            </div>
-          </aside>
-        </section>
-      )}
-
-      {page === "data" && (
-        <section className="page-grid daily-grid">
-          <div className="panel task-panel">
-            <div className="section-title">
-              <BarChart3 aria-hidden="true" />
-              <h2>每日经营事实表</h2>
-            </div>
-            <div className="entry-list daily-entry-list">
-              {dailyFields.map((field) => (
-                <label className="metric-input-row" key={field.id}>
-                  <span>
-                    <strong>{field.label}</strong>
-                    <small>{field.helper}</small>
-                  </span>
-                  <div>
-                    <input
-                      aria-label={field.label}
-                      inputMode="decimal"
-                      type="number"
-                      value={formatDailyInputValue(Number(dailyFacts[field.id] ?? 0), field.unit)}
-                      onChange={(event) => updateDailyFact(field, event.target.value)}
-                    />
-                    <em>{field.unit}</em>
-                  </div>
-                </label>
-              ))}
-            </div>
-
-            <div className="section-title stacked-title">
-              <Activity aria-hidden="true" />
-              <h2>自动计算</h2>
-            </div>
-            <div className="daily-metric-grid">
-              <DailyMetric label="自然曝光占比" value={formatPercent(v4Review.derivedMetrics.naturalExposureShare)} />
-              <DailyMetric label="广告曝光占比" value={formatPercent(v4Review.derivedMetrics.adExposureShare)} />
-              <DailyMetric label="曝光访客率" value={formatPercent(v4Review.derivedMetrics.exposureVisitorRate)} />
-              <DailyMetric label="访客询盘率" value={formatPercent(v4Review.derivedMetrics.visitorInquiryRate)} />
-              <DailyMetric label="询盘支付率" value={formatPercent(v4Review.derivedMetrics.inquiryPaymentRate)} />
-              <DailyMetric label="单询盘广告成本" value={formatMoney(v4Review.derivedMetrics.adCostPerInquiry)} />
-              <DailyMetric label="单支付广告成本" value={formatMoney(v4Review.derivedMetrics.adCostPerPayment)} />
-              <DailyMetric label="客单价" value={formatMoney(v4Review.derivedMetrics.paymentAverageOrderValue)} />
-              <DailyMetric label="广告费率" value={formatPercent(v4Review.derivedMetrics.adSpendShare)} />
-            </div>
-          </div>
-
-          <aside className="panel method-panel">
-            <div className="section-title">
-              <Target aria-hidden="true" />
-              <h2>异常归因</h2>
-            </div>
-            {v4Review.primaryAnomaly ? (
-              <article className={`decision-card daily-anomaly ${v4Review.primaryAnomaly.priority.toLowerCase()}`}>
-                <span>{v4Review.primaryAnomaly.priority}</span>
-                <strong>{v4Review.primaryAnomaly.metricLabel}</strong>
-                <p>{v4Review.primaryAnomaly.currentLabel} / 目标 {v4Review.primaryAnomaly.targetLabel}</p>
-                <small>{v4Review.primaryAnomaly.hypothesis}</small>
-              </article>
-            ) : (
-              <p className="empty-copy">今日核心链路未触发异常阈值，适合沉淀动作和继续观察。</p>
-            )}
-
-            <div className="section-title stacked-title">
-              <CheckCircle2 aria-hidden="true" />
-              <h2>异常实验卡</h2>
-            </div>
-            <article className="experiment-card">
-              <span>{formatReviewCadence(v4Review.experimentCard.reviewCadence)}</span>
-              <strong>{v4Review.experimentCard.title}</strong>
-              <p>{v4Review.experimentCard.hypothesis}</p>
-              <dl>
-                <dt>动作</dt>
-                <dd>{v4Review.experimentCard.action}</dd>
-                <dt>预期</dt>
-                <dd>{v4Review.experimentCard.expectedChange}</dd>
-                <dt>成功</dt>
-                <dd>{v4Review.experimentCard.successCriteria}</dd>
-                <dt>停止条件</dt>
-                <dd>{v4Review.experimentCard.stopCondition}</dd>
-              </dl>
-            </article>
-
-            <div className="section-title stacked-title">
-              <Factory aria-hidden="true" />
-              <h2>官方侧栏</h2>
-            </div>
-            <div className="official-list">
-              <p><strong>店铺层级</strong>{dailyFacts.storeLayerRank}</p>
-              <p><strong>现货商品数</strong>{dailyFacts.spotProductCount} 款</p>
-              <p><strong>潜力品数</strong>{dailyFacts.potentialProductCount} 款</p>
-              <p><strong>金冠品数</strong>{dailyFacts.crownProductCount} 款</p>
-              <p><strong>补单买家数</strong>{dailyFacts.replenishmentBuyerCount} 人</p>
-            </div>
-          </aside>
-        </section>
-      )}
-
-      {page === "analysis" && (
-        <>
-          <PageHeader title="店铺哪里掉了？" description="先看最大掉点，再决定今天试什么动作。" />
-          <section className="priority-grid" aria-label="卡点诊断优先区">
-            <MetricCard
-              label="漏斗"
-              value={`${v5Loop.primaryBottleneck.label}瓶颈`}
-              helper={v5Loop.primaryBottleneck.diagnosis}
-              tone="warning"
-            />
-            <MetricCard
-              label="最大卡点"
-              value={commandCenter.primaryBlocker?.metricLabel ?? v5Loop.primaryBottleneck.label}
-              helper={commandCenter.primaryBlocker?.gapLabel ?? "进入观察"}
-              tone={commandCenter.primaryBlocker ? "danger" : "success"}
-            />
-            <MetricCard
-              label="建议实验"
-              value={v3Review.experimentCards[0]?.title ?? "先补数据"}
-              helper={
-                v3Review.experimentCards[0] ? `目标：${v3Review.experimentCards[0].expectedChange}` : "缺数据时不强行判断"
-              }
-              tone="action"
-            />
-          </section>
-        </>
-      )}
-
-      {page === "analysis" && (
-        <section className="v5-grid">
-          <div className="panel">
-            <div className="section-title">
-              <BarChart3 aria-hidden="true" />
-              <h2>趋势 BI</h2>
-            </div>
-            <div className="v5-trend-grid">
-              {v5Loop.trends
-                .filter((trend) =>
-                  ["visitors", "visitor_inquiry_rate", "inquiry_payment_rate", "ad_spend_share"].includes(
-                    trend.metricId
-                  )
-                )
-                .map((trend) => (
-                  <article className={`v5-trend-card ${trend.status}`} key={trend.metricId}>
-                    <span>{trend.label}</span>
-                    <strong>{trend.latestLabel}</strong>
-                    <small>7 日均值 {trend.averageLabel}</small>
-                    <em>{formatTrendLabel(trend.trend)}</em>
-                  </article>
-                ))}
-            </div>
-          </div>
-
-          <div className="panel">
-            <div className="section-title">
-              <Activity aria-hidden="true" />
-              <h2>卡点漏斗</h2>
-            </div>
-            <div className="v5-funnel">
-              {v5Loop.funnelStages.map((stage) => (
-                <article className={`v5-funnel-stage ${stage.status}`} key={stage.id}>
-                  <span>{formatV5Status(stage.status)}</span>
-                  <strong>{stage.label}</strong>
-                  <p>{stage.currentLabel} / 目标 {stage.targetLabel}</p>
-                </article>
-              ))}
-            </div>
-            <div className="v5-bottleneck">
-              <span>当前主卡点</span>
-              <strong>主卡点：{v5Loop.primaryBottleneck.label}</strong>
-              <p>{v5Loop.primaryBottleneck.diagnosis}</p>
-            </div>
-          </div>
-
-          <div className="panel">
-            <div className="section-title">
-              <ClipboardList aria-hidden="true" />
-              <h2>今日 Checklist</h2>
-            </div>
-            <div className="v5-checklist">
-              {v5Loop.checklist.map((item) => (
-                <article className="v5-check-item" key={item.id}>
-                  <label>
-                    <input
-                      checked={checkedChecklistIds.includes(item.id)}
-                      type="checkbox"
-                      onChange={() => toggleChecklist(item.id)}
-                    />
-                    <span>{item.checkLabel}</span>
-                  </label>
-                  <strong>{item.title}</strong>
-                  <p>{item.notePrompt}</p>
-                  <small>{item.evidenceTrigger}</small>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <aside className="panel v5-side-panel">
-            <div className="section-title">
-              <RotateCcw aria-hidden="true" />
-              <h2>动作回测</h2>
-            </div>
-            {firstChecklistAction ? (
-              <>
-                <strong>回测动作：{firstChecklistAction.title}</strong>
-                <p>{firstChecklistAction.reviewQuestion}</p>
-                <label className="metric-input-row compact">
-                  <span>
-                    <strong>回测后 访客询盘率</strong>
-                    <small>填动作后 3 天均值</small>
-                  </span>
-                  <div>
-                    <input
-                      aria-label="回测后 访客询盘率"
-                      inputMode="decimal"
-                      type="number"
-                      value={v5BacktestAfter}
-                      onChange={(event) => setV5BacktestAfter(event.target.value)}
-                    />
-                    <em>%</em>
-                  </div>
-                </label>
-                <button className="primary-action" type="button" onClick={runV5Backtest}>
-                  记录 V5 回测
-                </button>
-              </>
-            ) : (
-              <p className="empty-copy">当前没有需要回测的 checklist。</p>
-            )}
-
-            <div className="section-title stacked-title">
-              <BookOpenCheck aria-hidden="true" />
-              <h2>SOP 候选</h2>
-            </div>
-            {v5BacktestResult ? (
-              <div className={`v5-result-box ${v5BacktestResult.result}`}>
-                <span>{formatV5BacktestLabel(v5BacktestResult.result)}</span>
-                <strong>{v5BacktestResult.summary}</strong>
-                {v5BacktestResult.sopCandidate ? <p>{v5BacktestResult.sopCandidate.title}</p> : null}
-              </div>
-            ) : (
-              <p className="empty-copy">勾选 checklist 并录入回测后，系统判断是否进入 SOP 候选。</p>
-            )}
-          </aside>
-        </section>
-      )}
-
-      {page === "rules" && (
-        <PageHeader
-          title="维护判断规则"
-          description="这是后台维护页面，用来管理平台规则口径，不是员工每天必须处理的主流程。"
+      {page === "command" ? (
+        <CommandPage
+          commandCenter={commandCenter}
+          completedMissionActionIds={completedMissionActionIds}
+          missionCompletedCount={missionCompletedCount}
+          todayGapLabel={todayGapLabel}
+          todayHeroReason={todayHeroReason}
+          todayPrimaryMetric={todayPrimaryMetric}
+          onOpenData={() => setPage("data")}
+          onToggleMissionAction={toggleMissionAction}
         />
-      )}
+      ) : null}
 
-      {page === "rules" && (
-        <section className="page-grid rules-grid">
-          <div className="panel task-panel">
-            <div className="section-title">
-              <ShieldCheck aria-hidden="true" />
-              <h2>规则版本库</h2>
-            </div>
-            <div className="rule-list">
-              {ruleVersions.map((rule) => (
-                <article className="rule-card" key={rule.id}>
-                  <div className="rule-card-head">
-                    <span className={rule.status === "active" ? "confirmed" : "unconfirmed"}>
-                      {rule.status === "active" ? "已采用" : "来源待补"}
-                    </span>
-                    <strong>{rule.name}</strong>
-                  </div>
-                  <dl>
-                    <dt>发布日期</dt>
-                    <dd>{rule.publishedAt}</dd>
-                    <dt>适用范围</dt>
-                    <dd>{rule.scope}</dd>
-                    <dt>官方链接</dt>
-                    <dd>
-                      <a href={rule.sourceUrl} rel="noreferrer" target="_blank">
-                        打开规则
-                      </a>
-                    </dd>
-                    <dt>规则状态</dt>
-                    <dd>{formatRuleStatus(rule.status)}</dd>
-                    <dt>来源可信度</dt>
-                    <dd>{formatSourceConfidence(rule.sourceConfidence)}</dd>
-                    <dt>最近维护</dt>
-                    <dd>{rule.lastReviewedAt ?? "待补"}</dd>
-                    <dt>维护说明</dt>
-                    <dd>{rule.reviewNotes}</dd>
-                    <dt>绑定目标</dt>
-                    <dd>{rule.appliesToGoalIds.map((id) => goalLabel(id)).join("、")}</dd>
-                  </dl>
-                  <div className="rule-actions">
-                    {rule.status !== "active" ? (
-                      <button type="button" onClick={() => adoptRule(rule.id)}>
-                        采用规则
-                      </button>
-                    ) : null}
-                    {!rule.appliesToGoalIds.includes(goalId) ? (
-                      <button type="button" onClick={() => bindRuleToCurrentGoal(rule.id)}>
-                        绑定当前目标
-                      </button>
-                    ) : null}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-          <aside className="panel method-panel rule-admin-panel">
-            <div className="section-title">
-              <Target aria-hidden="true" />
-              <h2>规则运营后台</h2>
-            </div>
-            <div className="rule-basis">
-              <strong>当前采用规则 {activeRules.length} 条</strong>
-              <p>{activeRules.length === 0 ? "当前目标还没有采用中的规则版本，仍可按来源待补规则生成行动建议。" : "已采用规则会进入目标差距和 checklist，后台口径仍可覆盖。"}</p>
-            </div>
-            <div className="rule-form">
-              <label>
-                <span>规则名称</span>
-                <input
-                  aria-label="规则名称"
-                  value={ruleForm.name}
-                  onChange={(event) => updateRuleForm("name", event.target.value)}
-                />
-              </label>
-              <label>
-                <span>发布日期</span>
-                <input
-                  aria-label="发布日期"
-                  value={ruleForm.publishedAt}
-                  onChange={(event) => updateRuleForm("publishedAt", event.target.value)}
-                />
-              </label>
-              <label>
-                <span>官方链接</span>
-                <input
-                  aria-label="官方链接"
-                  value={ruleForm.sourceUrl}
-                  onChange={(event) => updateRuleForm("sourceUrl", event.target.value)}
-                />
-              </label>
-              <label>
-                <span>适用范围</span>
-                <input
-                  aria-label="适用范围"
-                  value={ruleForm.scope}
-                  onChange={(event) => updateRuleForm("scope", event.target.value)}
-                />
-              </label>
-              <button className="primary-action" type="button" onClick={addDraftRule}>
-                新增规则草案
-              </button>
-            </div>
-            <div className="cadence-list">
-              <p><strong>当前目标</strong>{dashboard.goalLabel}</p>
-              <p><strong>使用原则</strong>不再用来源核验卡住员工端；来源待补也可以生成建议。</p>
-              <p><strong>更新动作</strong>官方规则变更后，新增规则版本，标记来源可信度，再按后台口径采用。</p>
-            </div>
-          </aside>
-        </section>
-      )}
+      {page === "data" ? (
+        <DataPage
+          dailyFacts={dailyFacts}
+          dailyFields={dailyFields}
+          editableMetrics={editableMetrics}
+          sycmImportStatus={sycmImportStatus}
+          v4Review={v4Review}
+          values={values}
+          onImportSycmCoreBoard={(file) => void importSycmCoreBoard(file)}
+          onUpdateDailyFact={updateDailyFact}
+          onUpdateMetric={updateMetric}
+        />
+      ) : null}
 
-      {page === "analysis" && (
-        <section className="page-grid goals-grid">
-          <div className="panel task-panel">
-            <div className="section-title">
-              <Target aria-hidden="true" />
-              <h2>目标差距</h2>
-            </div>
-            <div className="gap-list">
-              {dashboard.gaps.map((gap) => (
-                <article className={`gap-card ${gap.priority.toLowerCase()}`} key={gap.metricId}>
-                  <div>
-                    <span>{gap.priority}</span>
-                    <strong>{gap.metricLabel}{gap.gapLabel}</strong>
-                  </div>
-                  <p>{gap.currentLabel} / 目标 {gap.targetLabel}</p>
-                  <small>{gap.whyItMatters}</small>
-                </article>
-              ))}
-            </div>
-          </div>
-          <aside className="panel method-panel">
-            <div className="section-title">
-              <BarChart3 aria-hidden="true" />
-              <h2>指标快照</h2>
-            </div>
-            <div className="metric-list">
-              {dashboard.readings.map((reading) => (
-                <div key={reading.id}>
-                  <span>{reading.label}</span>
-                  <strong>{reading.currentLabel}</strong>
-                </div>
-              ))}
-            </div>
-            <div className="section-title stacked-title">
-              <ShieldCheck aria-hidden="true" />
-              <h2>适用规则版本</h2>
-            </div>
-            <div className="rule-chip-list">
-              {dashboard.ruleVersions.map((rule) => (
-                <span className={rule.status === "active" ? "confirmed" : "unconfirmed"} key={rule.id}>
-                  {rule.name}
-                </span>
-              ))}
-            </div>
-          </aside>
-        </section>
-      )}
+      {page === "analysis" ? (
+        <AnalysisPage
+          actionPlan={actionPlan}
+          checkedChecklistIds={checkedChecklistIds}
+          commandCenter={commandCenter}
+          dashboard={dashboard}
+          firstChecklistAction={firstChecklistAction}
+          v3Review={v3Review}
+          v5BacktestAfter={v5BacktestAfter}
+          v5BacktestResult={v5BacktestResult}
+          v5Loop={v5Loop}
+          onRunV5Backtest={runV5Backtest}
+          onToggleChecklist={toggleChecklist}
+          onV5BacktestAfterChange={setV5BacktestAfter}
+        />
+      ) : null}
 
-      {page === "analysis" && (
-        <section className="page-grid today-grid">
-          <div className="panel task-panel">
-            <div className="section-title">
-              <Target aria-hidden="true" />
-              <h2>路径拆解</h2>
-            </div>
-            <div className="path-list">
-              {actionPlan.pathSteps.map((step, index) => (
-                <article className="path-card" key={step.id}>
-                  <span>{String(index + 1).padStart(2, "0")}</span>
-                  <strong>{step.title}</strong>
-                  <p>{step.formula}</p>
-                  <small>{step.checkpoint}</small>
-                </article>
-              ))}
-            </div>
-          </div>
-          <aside className="panel method-panel">
-            <div className="section-title">
-              <CheckCircle2 aria-hidden="true" />
-              <h2>今日动作</h2>
-            </div>
-            <div className="task-list">
-              {actionPlan.actions.map((action) => (
-                <article className={`task-card ${action.priority.toLowerCase()}`} key={action.id}>
-                  <div className="task-head">
-                    <span>{action.priority}</span>
-                    <strong>{action.title}</strong>
-                  </div>
-                  <p>{action.method}</p>
-                  <dl>
-                    <dt>完成证据</dt>
-                    <dd className="evidence-list">
-                      {action.evidence.map((item) => (
-                        <span key={item}>{item}</span>
-                      ))}
-                    </dd>
-                    <dt>复盘问题</dt>
-                    <dd>{action.reviewQuestion}</dd>
-                  </dl>
-                </article>
-              ))}
-            </div>
-          </aside>
-        </section>
-      )}
+      {page === "rules" ? (
+        <RulesPage
+          activeRules={activeRules}
+          dashboard={dashboard}
+          goalId={goalId}
+          goalLabel={goalLabel}
+          ruleForm={ruleForm}
+          ruleVersions={ruleVersions}
+          onAddDraftRule={addDraftRule}
+          onAdoptRule={adoptRule}
+          onBindRuleToCurrentGoal={bindRuleToCurrentGoal}
+          onUpdateRuleForm={updateRuleForm}
+        />
+      ) : null}
 
-      {page === "review" && (
-        <PageHeader title="这个动作有没有用？" description="先记录当前回测，再决定是否沉淀成 SOP。" />
-      )}
+      {page === "review" ? (
+        <ReviewPage
+          backtestAfter={backtestAfter}
+          backtestResult={backtestResult}
+          firstAction={firstAction}
+          v3Review={v3Review}
+          onBacktestAfterChange={setBacktestAfter}
+          onRunBacktest={runBacktest}
+        />
+      ) : null}
 
-      {page === "review" && (
-        <section className="page-grid review-grid">
-          <div className="panel backtest-panel">
-            <div className="section-title">
-              <RotateCcw aria-hidden="true" />
-              <h2>动作回测</h2>
-            </div>
-            {firstAction ? (
-              <>
-                <strong>{firstAction.title}</strong>
-                <p>{firstAction.method}</p>
-                <label className="metric-input-row compact">
-                  <span>
-                    <strong>回测后 旺旺 3 分钟响应率</strong>
-                    <small>填动作后最新数据</small>
-                  </span>
-                  <div>
-                    <input
-                      aria-label="回测后 旺旺 3 分钟响应率"
-                      inputMode="decimal"
-                      type="number"
-                      value={backtestAfter}
-                      onChange={(event) => setBacktestAfter(event.target.value)}
-                    />
-                    <em>%</em>
-                  </div>
-                </label>
-                <button className="primary-action" type="button" onClick={() => runBacktest(firstAction)}>
-                  记录回测
-                </button>
-              </>
-            ) : (
-              <p className="empty-copy">当前没有缺口动作，先录入新的指标。</p>
-            )}
-          </div>
-          <div className="panel">
-            <div className="section-title">
-              <BookOpenCheck aria-hidden="true" />
-              <h2>SOP 状态</h2>
-            </div>
-            {backtestResult ? (
-              <div className="sop-box">
-                <span>{formatSopState(backtestResult.sopState)}</span>
-                <strong>{backtestResult.summary}</strong>
-              </div>
-            ) : (
-              <p className="empty-copy">完成动作后录入回测数据。</p>
-            )}
-          </div>
-        </section>
-      )}
-
-      {page === "analysis" && (
-        <section className="page-grid reasoning-grid">
-          <div className="panel task-panel">
-            <div className="section-title">
-              <Brain aria-hidden="true" />
-              <h2>优先级裁判</h2>
-            </div>
-            <div className="decision-card">
-              <span>{layerLabel(v3Review.priorityDecision.layer)}</span>
-              <strong>{v3Review.priorityDecision.focus}</strong>
-              <p>{v3Review.priorityDecision.reason}</p>
-              <div className="block-list">
-                {v3Review.priorityDecision.blockedGoals.map((goal) => (
-                  <em key={goal}>{goal}</em>
-                ))}
-              </div>
-            </div>
-
-            <div className="section-title stacked-title">
-              <BarChart3 aria-hidden="true" />
-              <h2>原因假设</h2>
-            </div>
-            <div className="hypothesis-list">
-              {v3Review.causeHypotheses.slice(0, 4).map((item) => (
-                <article className="hypothesis-card" key={`${item.symptom}-${item.hypothesis}`}>
-                  <span>{item.confidence}</span>
-                  <strong>{item.hypothesis}</strong>
-                  <p>{item.symptom}</p>
-                  <small>{item.evidenceToCheck}</small>
-                </article>
-              ))}
-            </div>
-          </div>
-          <aside className="panel method-panel">
-            <div className="section-title">
-              <CheckCircle2 aria-hidden="true" />
-              <h2>动作实验卡</h2>
-            </div>
-            {v3Review.experimentCards.map((experiment) => (
-              <article className="experiment-card" key={experiment.id}>
-                <span>{experiment.reviewCadence}</span>
-                <strong>{experiment.title}</strong>
-                <p>{experiment.hypothesis}</p>
-                <dl>
-                  <dt>动作</dt>
-                  <dd>{experiment.action}</dd>
-                  <dt>预期</dt>
-                  <dd>{experiment.expectedChange}</dd>
-                  <dt>停止</dt>
-                  <dd>{experiment.stopCondition}</dd>
-                </dl>
-              </article>
-            ))}
-          </aside>
-        </section>
-      )}
-
-      {page === "product" && (
-        <PageHeader title="哪些商品该加力，哪些该停？" description="先看商品组合，再处理风险款和可放大的定制款。" />
-      )}
-
-      {page === "product" && (
-        <section className="page-grid sku-grid">
-          <div className="panel task-panel">
-            <div className="section-title">
-              <PackageCheck aria-hidden="true" />
-              <h2>SKU 经营组合</h2>
-            </div>
-            <div className="sku-list">
-              {v3Review.skuPortfolio.map((sku) => (
-                <article className={`sku-card ${sku.role === "风险款" ? "risk" : ""}`} key={sku.name}>
-                  <span>{sku.role}</span>
-                  <strong>{sku.name}</strong>
-                  <p>{sku.recommendation}</p>
-                  <div className="sku-metrics">
-                    <small>询盘 {sku.inquiries}</small>
-                    <small>有效 {Math.round(sku.validInquiryRate * 100)}%</small>
-                    <small>毛利 {Math.round(sku.grossMarginRate * 100)}%</small>
-                    <small>售后 {Math.round(sku.afterSalesRate * 100)}%</small>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-          <aside className="panel method-panel">
-            <div className="section-title">
-              <Target aria-hidden="true" />
-              <h2>组合原则</h2>
-            </div>
-            <div className="cadence-list">
-              <p><strong>定制款</strong> 负责 LOGO、刻字、礼品包装和找工厂积分。</p>
-              <p><strong>引流款</strong> 可以带询盘，但必须有毛利和低质量询盘警戒线。</p>
-              <p><strong>风险款</strong> 先控售后、履约和毛利，不继续加流量。</p>
-            </div>
-          </aside>
-        </section>
-      )}
-
-      {page === "review" && (
-        <section className="page-grid capability-grid">
-          <div className="panel task-panel">
-            <div className="section-title">
-              <GraduationCap aria-hidden="true" />
-              <h2>员工能力复盘</h2>
-            </div>
-            <div className="decision-card">
-              <span>{v3Review.capabilityReview.level}</span>
-              <strong>{v3Review.capabilityReview.summary}</strong>
-              <p>能力目标不是多填表，而是让员工能归因、能停止无效动作、能沉淀 SOP。</p>
-            </div>
-            <div className="training-list">
-              {v3Review.capabilityReview.nextTraining.map((item) => (
-                <p key={item}>{item}</p>
-              ))}
-            </div>
-          </div>
-          <aside className="panel method-panel">
-            <div className="section-title">
-              <BookOpenCheck aria-hidden="true" />
-              <h2>三层目标</h2>
-            </div>
-            <div className="layer-list">
-              {v3Review.goalLayers.map((layer) => (
-                <article key={layer.id}>
-                  <span>{layer.label}</span>
-                  <p>{layer.purpose}</p>
-                </article>
-              ))}
-            </div>
-          </aside>
-        </section>
-      )}
+      {page === "product" ? <ProductPage v3Review={v3Review} /> : null}
     </main>
   );
-}
-
-function DailyMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <article className="daily-metric-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </article>
-  );
-}
-
-function formatInputValue(value: number, unit: EditableMetric["unit"]): string {
-  if (unit === "%") return String(Math.round(value * 100));
-  return String(value);
-}
-
-function formatDailyInputValue(value: number, unit: DailyField["unit"]): string {
-  if (unit === "%") return String(Math.round(value * 100));
-  return String(value);
-}
-
-function formatPercent(value: number): string {
-  return `${Number((value * 100).toFixed(1))}%`;
-}
-
-function formatMoney(value: number): string {
-  return `¥${Number(value.toFixed(1)).toLocaleString("zh-CN")}`;
-}
-
-function formatMissingImportFields(fields: SycmCoreBoardImport["missingFields"]): string {
-  if (fields.length === 0) return "无";
-  const labels: Record<SycmCoreBoardImport["missingFields"][number], string> = {
-    inquiries: "询盘",
-    grossMarginRate: "毛利率"
-  };
-  return fields.map((field) => labels[field]).join("、");
 }
 
 function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
@@ -1511,55 +572,6 @@ function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
   });
 }
 
-function formatReviewCadence(cadence: "daily" | "three_days" | "weekly"): string {
-  if (cadence === "daily") return "每日";
-  if (cadence === "three_days") return "3 天";
-  return "每周";
-}
-
-function formatRuleStatus(status: "draft" | "source_found" | "active" | "deprecated"): string {
-  if (status === "active") return "生效";
-  if (status === "source_found") return "来源待补";
-  if (status === "deprecated") return "已过期";
-  return "草案";
-}
-
-function formatSourceConfidence(confidence: "low" | "medium" | "high"): string {
-  if (confidence === "high") return "高";
-  if (confidence === "medium") return "中";
-  return "低";
-}
-
 function goalLabel(goalId: V2GoalId): string {
   return goalOptions.find((goal) => goal.id === goalId)?.label ?? goalId;
-}
-
-function formatTrendLabel(trend: "up" | "flat" | "down"): string {
-  if (trend === "up") return "向好";
-  if (trend === "down") return "转弱";
-  return "持平";
-}
-
-function formatV5Status(status: "healthy" | "watch" | "blocked"): string {
-  if (status === "healthy") return "达标";
-  if (status === "watch") return "观察";
-  return "卡点";
-}
-
-function formatV5BacktestLabel(result: "effective" | "watch" | "ineffective"): string {
-  if (result === "effective") return "有效";
-  if (result === "watch") return "观察";
-  return "无效";
-}
-
-function formatSopState(state: V2Action["sopState"]): string {
-  if (state === "validated") return "已验证";
-  if (state === "stopped") return "停止";
-  return "SOP 候选";
-}
-
-function layerLabel(layer: "official" | "business" | "capability"): string {
-  if (layer === "official") return "官方目标";
-  if (layer === "business") return "经营目标";
-  return "能力目标";
 }
