@@ -2,6 +2,11 @@
 
 本文档组记录软件暂不内置、但必须先想清楚的底层经营知识。它不是页面说明，也不是开发任务清单，而是以后所有功能、规则、数据导入、作战单、BI 和员工动作的共同底座。
 
+当前冻结版总纲：
+
+- `docs/architecture/domain-foundation-v1.md`
+- `docs/plans/2026-05-25-domain-foundation-v1-implementation-plan.md`
+
 核心链路：
 
 ```text
