@@ -145,8 +145,12 @@ export function CommandPage({
 }
 
 function ResponseRateBenchmarkCard({ benchmark }: { benchmark: ResponseRateBenchmark }) {
+  const platform = benchmark.catchups.find((catchup) => catchup.id === "platform");
+  const peerAverage = benchmark.catchups.find((catchup) => catchup.id === "average");
+  const peerExcellent = benchmark.catchups.find((catchup) => catchup.id === "excellent");
+
   return (
-    <Card title="指标追赶计算" eyebrow="真实咨询口径" tone="warning">
+    <Card title="同行基准" eyebrow="新灯塔服务体验" tone="warning">
       <div className="response-benchmark-card">
         <div className="benchmark-headline">
           <div>
@@ -158,34 +162,11 @@ function ResponseRateBenchmarkCard({ benchmark }: { benchmark: ResponseRateBench
           </div>
           <div className="benchmark-peer-grid" aria-label="同行基准">
             <span>当前 {benchmark.currentLabel}</span>
-            {benchmark.catchups.map((catchup) => (
-              <span key={catchup.id}>
-                {catchup.label} {catchup.targetLabel}
-              </span>
-            ))}
+            {platform ? <span>{platform.label} {platform.targetLabel}</span> : null}
+            {peerAverage ? <span>{peerAverage.label} {peerAverage.targetLabel}</span> : null}
+            {peerExcellent ? <span>{peerExcellent.label} {peerExcellent.targetLabel}</span> : null}
           </div>
         </div>
-
-        <div className="benchmark-catchup-list" aria-label="达标所需真实咨询">
-          {benchmark.catchups.map((catchup) => (
-            <article key={catchup.id}>
-              <span>{catchup.label}</span>
-              <strong>{catchup.actionLabel}</strong>
-              <small>{catchup.gapLabel}</small>
-            </article>
-          ))}
-        </div>
-
-        <div className="benchmark-action-block">
-          <strong>怎么靠正常运营追上</strong>
-          <ul>
-            {benchmark.legalActions.map((action) => (
-              <li key={action}>{action}</li>
-            ))}
-          </ul>
-        </div>
-
-        <p className="benchmark-warning">{benchmark.complianceWarning}</p>
       </div>
     </Card>
   );

@@ -37,17 +37,13 @@ describe("1688 operations assistant UI", () => {
     expect(screen.getByText("数据 → 诊断 → 动作 → 复盘")).toBeInTheDocument();
   });
 
-  it("renders reference-level dashboard details without adding new business actions", () => {
+  it("renders a quieter operations shell without dashboard chrome overload", () => {
     render(<App />);
 
-    expect(screen.getByRole("toolbar", { name: "情报控制栏" })).toBeInTheDocument();
-    expect(screen.getByText("2026/05/23")).toBeInTheDocument();
-    expect(screen.getAllByText("日").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("周").length).toBeGreaterThan(0);
-    expect(screen.getByText("月")).toBeInTheDocument();
-    expect(screen.getAllByText("METRIC")).toHaveLength(4);
-    expect(screen.getByText("BRIEFING NOTE")).toBeInTheDocument();
-    expect(screen.getByText("今日情报简报")).toBeInTheDocument();
+    expect(screen.getByText("运营情报看板")).toBeInTheDocument();
+    expect(screen.queryByRole("toolbar", { name: "情报控制栏" })).not.toBeInTheDocument();
+    expect(screen.queryByText("METRIC")).not.toBeInTheDocument();
+    expect(screen.queryByText("BRIEFING NOTE")).not.toBeInTheDocument();
   });
 
   it("opens on a readable today task page with one primary goal, checklist, and collapsed context", async () => {
@@ -81,15 +77,15 @@ describe("1688 operations assistant UI", () => {
     expect(screen.getByRole("heading", { name: "录入今天的数据" })).toBeInTheDocument();
   });
 
-  it("shows response-rate peer benchmarks and real-consultation catch-up math", () => {
+  it("shows response-rate peer benchmarks without catch-up calculation clutter", () => {
     render(<App />);
 
-    expect(screen.getByText("指标追赶计算")).toBeInTheDocument();
+    expect(screen.getByText("同行基准")).toBeInTheDocument();
+    expect(screen.getByText("当前 52%")).toBeInTheDocument();
     expect(screen.getByText("同行平均 69.5%")).toBeInTheDocument();
     expect(screen.getByText("同行优秀 97.1%")).toBeInTheDocument();
-    expect(screen.getByText("还需 15 个后续真实有效咨询全部 3 分钟内回复")).toBeInTheDocument();
-    expect(screen.getByText("还需 389 个后续真实有效咨询全部 3 分钟内回复")).toBeInTheDocument();
-    expect(screen.getByText(/不建议使用虚假咨询或小号刷回复/)).toBeInTheDocument();
+    expect(screen.queryByText(/还需/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/小号刷回复/)).not.toBeInTheDocument();
   });
 
   it("shows only six primary navigation items", () => {

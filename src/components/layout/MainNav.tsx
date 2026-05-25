@@ -17,8 +17,10 @@ export function MainNav({ page, onChangePage }: MainNavProps) {
           onClick={() => onChangePage(key)}
         >
           <span>{pageMeta[key].step}</span>
-          <strong>{pageLabels[key]}</strong>
-          <small>{pageMeta[key].detail}</small>
+          <div className="nav-item-copy">
+            <strong>{pageLabels[key]}</strong>
+            <small>{pageMeta[key].detail}</small>
+          </div>
         </button>
       ))}
     </nav>
