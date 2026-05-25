@@ -1,7 +1,7 @@
 import { Card } from "../components/ui/Card";
 import { MetricCard } from "../components/ui/MetricCard";
 import { StatusBadge } from "../components/ui/StatusBadge";
-import type { buildV8CommandCenter } from "../lib/operations";
+import type { buildV8CommandCenter, ResponseRateBenchmark } from "../lib/operations";
 
 type CommandCenter = ReturnType<typeof buildV8CommandCenter>;
 
@@ -14,6 +14,7 @@ type CommandPageProps = {
   todayGapLabel: string;
   todayHeroReason: string;
   missionCompletedCount: number;
+  responseRateBenchmark: ResponseRateBenchmark;
   completedMissionActionIds: string[];
   onToggleMissionAction: (id: string) => void;
   onOpenData: () => void;
@@ -25,6 +26,7 @@ export function CommandPage({
   todayGapLabel,
   todayHeroReason,
   missionCompletedCount,
+  responseRateBenchmark,
   completedMissionActionIds,
   onToggleMissionAction,
   onOpenData
@@ -70,6 +72,8 @@ export function CommandPage({
           tone="success"
         />
       </section>
+
+      <ResponseRateBenchmarkCard benchmark={responseRateBenchmark} />
 
       <Card title="今日 checklist" eyebrow="只做最少必要动作" tone="action">
         <p className="command-instruction">
@@ -137,5 +141,52 @@ export function CommandPage({
         </div>
       </details>
     </section>
+  );
+}
+
+function ResponseRateBenchmarkCard({ benchmark }: { benchmark: ResponseRateBenchmark }) {
+  return (
+    <Card title="指标追赶计算" eyebrow="真实咨询口径" tone="warning">
+      <div className="response-benchmark-card">
+        <div className="benchmark-headline">
+          <div>
+            <span>{benchmark.metricLabel}</span>
+            <strong>
+              {benchmark.currentLabel} <em>{benchmark.levelLabel}</em>
+            </strong>
+            <p>{benchmark.sample.label}</p>
+          </div>
+          <div className="benchmark-peer-grid" aria-label="同行基准">
+            <span>当前 {benchmark.currentLabel}</span>
+            {benchmark.catchups.map((catchup) => (
+              <span key={catchup.id}>
+                {catchup.label} {catchup.targetLabel}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="benchmark-catchup-list" aria-label="达标所需真实咨询">
+          {benchmark.catchups.map((catchup) => (
+            <article key={catchup.id}>
+              <span>{catchup.label}</span>
+              <strong>{catchup.actionLabel}</strong>
+              <small>{catchup.gapLabel}</small>
+            </article>
+          ))}
+        </div>
+
+        <div className="benchmark-action-block">
+          <strong>怎么靠正常运营追上</strong>
+          <ul>
+            {benchmark.legalActions.map((action) => (
+              <li key={action}>{action}</li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="benchmark-warning">{benchmark.complianceWarning}</p>
+      </div>
+    </Card>
   );
 }

@@ -8,6 +8,7 @@ import {
   buildV4DailyOperatingReview,
   buildV5OperatingLoop,
   buildV8CommandCenter,
+  buildResponseRateBenchmark,
   bindRuleVersionToGoal,
   adoptRuleVersion,
   createDraftRuleVersion,
@@ -361,6 +362,16 @@ export default function App() {
     commandCenter.primaryBlocker?.gapLabel.replace(/^差\s*/, "") ?? "已达标";
   const todayHeroReason =
     commandCenter.primaryBlocker?.whyItMatters ?? commandCenter.mission.goal.priorityReason;
+  const responseRateTarget =
+    dashboard.readings.find((reading) => reading.id === "ww_3min_response_rate")?.target ?? 0.6;
+  const responseRateBenchmark = useMemo(
+    () =>
+      buildResponseRateBenchmark({
+        currentRate: values.ww_3min_response_rate,
+        platformTargetRate: responseRateTarget
+      }),
+    [responseRateTarget, values.ww_3min_response_rate]
+  );
 
   useEffect(() => {
     saveAppStorage(window.localStorage, {
@@ -466,6 +477,7 @@ export default function App() {
           commandCenter={commandCenter}
           completedMissionActionIds={completedMissionActionIds}
           missionCompletedCount={missionCompletedCount}
+          responseRateBenchmark={responseRateBenchmark}
           todayGapLabel={todayGapLabel}
           todayHeroReason={todayHeroReason}
           todayPrimaryMetric={todayPrimaryMetric}

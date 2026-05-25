@@ -5,6 +5,7 @@ import {
   buildV5OperatingLoop,
   buildV4DailyOperatingReview,
   buildV3OperatingReview,
+  buildResponseRateBenchmark,
   buildV2ActionPlan,
   buildV2GoalDashboard,
   buildV8CommandCenter,
@@ -175,6 +176,23 @@ describe("1688 operations engine", () => {
     });
     expect(dashboard.ruleVersions.map((rule) => rule.name)).toContain("找工厂铜牌规则");
     expect(dashboard.ruleVersions.every((rule) => rule.sourceConfidence !== undefined)).toBe(true);
+  });
+
+  it("calculates the real consultation volume needed to catch response-rate benchmarks", () => {
+    const benchmark = buildResponseRateBenchmark({
+      currentRate: 2 / 3,
+      onTimeReplyCount: 2,
+      effectiveInquiryCount: 3,
+      platformTargetRate: 0.6
+    });
+
+    expect(benchmark.currentLabel).toBe("66.67%");
+    expect(benchmark.averageLabel).toBe("69.5%");
+    expect(benchmark.excellentLabel).toBe("97.1%");
+    expect(benchmark.catchups.find((item) => item.id === "platform")?.neededPerfectReplies).toBe(0);
+    expect(benchmark.catchups.find((item) => item.id === "average")?.neededPerfectReplies).toBe(1);
+    expect(benchmark.catchups.find((item) => item.id === "excellent")?.neededPerfectReplies).toBe(32);
+    expect(benchmark.complianceWarning).toContain("真实有效咨询");
   });
 
   it("keeps official target rules as versioned records with source confidence", () => {

@@ -81,6 +81,17 @@ describe("1688 operations assistant UI", () => {
     expect(screen.getByRole("heading", { name: "录入今天的数据" })).toBeInTheDocument();
   });
 
+  it("shows response-rate peer benchmarks and real-consultation catch-up math", () => {
+    render(<App />);
+
+    expect(screen.getByText("指标追赶计算")).toBeInTheDocument();
+    expect(screen.getByText("同行平均 69.5%")).toBeInTheDocument();
+    expect(screen.getByText("同行优秀 97.1%")).toBeInTheDocument();
+    expect(screen.getByText("还需 15 个后续真实有效咨询全部 3 分钟内回复")).toBeInTheDocument();
+    expect(screen.getByText("还需 389 个后续真实有效咨询全部 3 分钟内回复")).toBeInTheDocument();
+    expect(screen.getByText(/不建议使用虚假咨询或小号刷回复/)).toBeInTheDocument();
+  });
+
   it("shows only six primary navigation items", () => {
     render(<App />);
 

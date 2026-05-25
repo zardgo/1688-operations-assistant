@@ -569,6 +569,44 @@ export type V8CommandCenter = {
   employeeInstruction: string;
 };
 
+export type ResponseRateBenchmarkInput = {
+  currentRate: number;
+  onTimeReplyCount?: number;
+  effectiveInquiryCount?: number;
+  platformTargetRate?: number;
+};
+
+export type ResponseRateCatchup = {
+  id: "platform" | "average" | "excellent";
+  label: string;
+  targetRate: number;
+  targetLabel: string;
+  gapLabel: string;
+  neededPerfectReplies: number;
+  actionLabel: string;
+};
+
+export type ResponseRateBenchmark = {
+  metricId: "ww_3min_response_rate";
+  metricLabel: "旺旺 3 分钟响应率";
+  currentRate: number;
+  currentLabel: string;
+  levelLabel: "低" | "中" | "优秀";
+  averageRate: number;
+  averageLabel: string;
+  excellentRate: number;
+  excellentLabel: string;
+  sample: {
+    onTimeReplyCount: number;
+    effectiveInquiryCount: number;
+    estimated: boolean;
+    label: string;
+  };
+  catchups: ResponseRateCatchup[];
+  legalActions: string[];
+  complianceWarning: string;
+};
+
 type MetricRule = {
   metric: keyof WeeklyMetrics;
   label: string;
@@ -1434,6 +1472,78 @@ export function buildV8CommandCenter(
   };
 }
 
+export function buildResponseRateBenchmark(input: ResponseRateBenchmarkInput): ResponseRateBenchmark {
+  const averageRate = 0.695;
+  const excellentRate = 0.971;
+  const effectiveInquiryCount = input.effectiveInquiryCount ?? 25;
+  const onTimeReplyCount = input.onTimeReplyCount ?? Math.round(input.currentRate * effectiveInquiryCount);
+  const currentRate =
+    input.effectiveInquiryCount && input.effectiveInquiryCount > 0
+      ? onTimeReplyCount / input.effectiveInquiryCount
+      : input.currentRate;
+  const platformTargetRate = input.platformTargetRate ?? 0.6;
+  const sampleEstimated = input.onTimeReplyCount === undefined || input.effectiveInquiryCount === undefined;
+
+  const catchups: ResponseRateCatchup[] = [
+    buildResponseRateCatchup("platform", "平台目标", currentRate, onTimeReplyCount, effectiveInquiryCount, platformTargetRate),
+    buildResponseRateCatchup("average", "同行平均", currentRate, onTimeReplyCount, effectiveInquiryCount, averageRate),
+    buildResponseRateCatchup("excellent", "同行优秀", currentRate, onTimeReplyCount, effectiveInquiryCount, excellentRate)
+  ];
+
+  return {
+    metricId: "ww_3min_response_rate",
+    metricLabel: "旺旺 3 分钟响应率",
+    currentRate,
+    currentLabel: formatBenchmarkPercent(currentRate),
+    levelLabel: currentRate >= excellentRate ? "优秀" : currentRate >= platformTargetRate ? "中" : "低",
+    averageRate,
+    averageLabel: formatBenchmarkPercent(averageRate),
+    excellentRate,
+    excellentLabel: formatBenchmarkPercent(excellentRate),
+    sample: {
+      onTimeReplyCount,
+      effectiveInquiryCount,
+      estimated: sampleEstimated,
+      label: sampleEstimated
+        ? `按 ${onTimeReplyCount}/${effectiveInquiryCount} 估算，导入新灯塔分母后会重算。`
+        : `当前样本 ${onTimeReplyCount}/${effectiveInquiryCount}。`
+    },
+    catchups,
+    legalActions: [
+      "高峰时段安排人工盯旺旺，先保 09:00-11:00、14:00-17:00。",
+      "设置首句快捷回复和 90 秒未回提醒，先让买家收到有效承接。",
+      "把未及时回复按人手、提醒、话术、无效询盘四类归因。"
+    ],
+    complianceWarning: "只计算真实有效咨询下的达标路径，不建议使用虚假咨询或小号刷回复。"
+  };
+}
+
+function buildResponseRateCatchup(
+  id: ResponseRateCatchup["id"],
+  label: string,
+  currentRate: number,
+  onTimeReplyCount: number,
+  effectiveInquiryCount: number,
+  targetRate: number
+): ResponseRateCatchup {
+  const gap = Math.max(0, targetRate - currentRate);
+  const neededPerfectReplies =
+    gap === 0 ? 0 : Math.max(0, Math.ceil((targetRate * effectiveInquiryCount - onTimeReplyCount) / (1 - targetRate)));
+
+  return {
+    id,
+    label,
+    targetRate,
+    targetLabel: formatBenchmarkPercent(targetRate),
+    gapLabel: gap === 0 ? "已达到" : `差 ${formatBenchmarkPercent(gap).replace("%", " 个百分点")}`,
+    neededPerfectReplies,
+    actionLabel:
+      neededPerfectReplies === 0
+        ? `已达到${label}`
+        : `还需 ${neededPerfectReplies} 个后续真实有效咨询全部 3 分钟内回复`
+  };
+}
+
 export function backtestV2Action(action: V2Action, before: number, after: number): V2BacktestResult {
   const definition = getV2MetricDefinition(action.targetMetricId);
   const delta = definition.direction === "min" ? after - before : before - after;
@@ -1510,6 +1620,10 @@ function formatV2MetricValue(value: number, format: V2MetricDefinition["format"]
   if (format === "score") return `${Math.round(value * 10) / 10}分`;
   if (format === "stars") return `${Math.round(value * 10) / 10}星`;
   return `${value}`;
+}
+
+function formatBenchmarkPercent(value: number): string {
+  return `${(value * 100).toFixed(2).replace(/\.0+$/, "").replace(/(\.\d)0$/, "$1")}%`;
 }
 
 function formatV2Gap(current: number, target: number, definition: V2MetricDefinition): string {
