@@ -4,6 +4,7 @@ export { diagnosisRules } from "./diagnosisRules";
 export { domainDefinitions } from "./domains";
 export { goalMappings } from "./goalMappings";
 export { metricDefinitions } from "./metrics";
+export * from "./dailyFactAdapter";
 export * from "./domainModules";
 export * from "./metricReadings";
 export * from "./operationsAdapter";
