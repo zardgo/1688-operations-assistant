@@ -118,6 +118,15 @@ export type DiagnosisRule = {
   guardrailChecks: string[];
 };
 
+export type DomainModule = {
+  domain: DomainDefinition;
+  metrics: MetricDefinition[];
+  dataSources: DataSourceDefinition[];
+  diagnosisRules: DiagnosisRule[];
+  actionTemplates: ActionTemplate[];
+  guardrails: MetricDefinition[];
+};
+
 export type ActiveGoalContext = {
   goalId: string;
   shopId: string;
