@@ -117,3 +117,21 @@ export type DiagnosisRule = {
   fallbackWhenMissingData: string;
   guardrailChecks: string[];
 };
+
+export type ActiveGoalContext = {
+  goalId: string;
+  shopId: string;
+  domainIds: DomainId[];
+  startedAt: string;
+  targetWindow: "daily" | "weekly" | "monthly" | "30d";
+  status: "active" | "paused" | "completed";
+};
+
+export function createActiveGoalContext(
+  input: Omit<ActiveGoalContext, "status"> & { status?: ActiveGoalContext["status"] }
+): ActiveGoalContext {
+  return {
+    ...input,
+    status: input.status ?? "active"
+  };
+}
