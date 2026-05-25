@@ -2186,6 +2186,7 @@ body {
 
 .app-sidebar .mode-tabs.v2-tabs {
   display: grid;
+  grid-template-columns: 1fr;
   gap: 8px;
   margin: 0;
   padding: 0;
@@ -2195,10 +2196,7 @@ body {
 .app-sidebar .mode-tabs button,
 .app-sidebar .mode-tabs.v2-tabs button {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  grid-template-areas:
-    "step label"
-    "step detail";
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   min-height: 58px;
   padding: 10px 12px;
@@ -2217,19 +2215,10 @@ body {
 }
 
 .app-sidebar .mode-tabs button span {
-  grid-area: step;
-  display: inline-grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  color: rgba(233, 241, 236, 0.72);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(221, 232, 226, 0.14);
-  border-radius: 50%;
+  display: none;
 }
 
 .app-sidebar .mode-tabs button strong {
-  grid-area: label;
   min-width: 0;
   color: inherit;
   font-size: 14px;
@@ -2237,7 +2226,6 @@ body {
 }
 
 .app-sidebar .mode-tabs button small {
-  grid-area: detail;
   color: rgba(233, 241, 236, 0.48);
   font-size: 12px;
 }
@@ -2246,12 +2234,6 @@ body {
   color: #ffffff;
   background: rgba(139, 216, 177, 0.14);
   border-color: rgba(94, 214, 154, 0.36);
-}
-
-.app-sidebar .mode-tabs button.active span {
-  color: #07100b;
-  background: var(--success);
-  border-color: var(--success);
 }
 
 .app-sidebar .mode-tabs button.active small {
@@ -2696,7 +2678,7 @@ body {
   .app-sidebar .mode-tabs.v2-tabs button {
     width: 100%;
     min-width: 0;
-    grid-template-columns: 30px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     min-height: 52px;
     padding: 9px 11px;
   }
@@ -2745,7 +2727,7 @@ body {
 
   .app-sidebar .mode-tabs button,
   .app-sidebar .mode-tabs.v2-tabs button {
-    grid-template-columns: 28px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     min-height: 46px;
     padding: 8px 10px;
   }
