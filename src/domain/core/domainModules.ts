@@ -3,6 +3,7 @@ import { dataSourceDefinitions } from "./dataSources";
 import { diagnosisRules } from "./diagnosisRules";
 import { domainDefinitions } from "./domains";
 import { metricDefinitions } from "./metrics";
+import { getGoalMapping } from "./selectors";
 import type { DataSourceDefinition, DomainId, DomainModule, MetricDefinition } from "./types";
 
 export function getDomainModule(domainId: DomainId): DomainModule {
@@ -31,6 +32,11 @@ export function getDomainModule(domainId: DomainId): DomainModule {
 
 export function listDomainModules(): DomainModule[] {
   return domainDefinitions.map((domain) => getDomainModule(domain.id));
+}
+
+export function getDomainModulesForGoal(goalId: string): DomainModule[] {
+  const goal = getGoalMapping(goalId);
+  return goal.domainIds.map(getDomainModule);
 }
 
 function resolveMetric(metricId: string): MetricDefinition {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDomainModule, listDomainModules } from "./domainModules";
+import { getDomainModule, getDomainModulesForGoal, listDomainModules } from "./domainModules";
 
 describe("domain modules", () => {
   it("derives a service module from foundation tables", () => {
@@ -32,5 +32,13 @@ describe("domain modules", () => {
 
   it("throws a clear error for unknown domain modules", () => {
     expect(() => getDomainModule("new_lighthouse" as never)).toThrow("Unknown domain module: new_lighthouse");
+  });
+
+  it("composes domain modules for a goal mapping", () => {
+    const modules = getDomainModulesForGoal("factory_bronze");
+
+    expect(modules.map((item) => item.domain.id)).toEqual(
+      expect.arrayContaining(["service", "factory_custom", "guardrail"])
+    );
   });
 });

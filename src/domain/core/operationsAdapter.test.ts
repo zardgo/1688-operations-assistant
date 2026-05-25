@@ -10,6 +10,7 @@ describe("operations adapter", () => {
     expect(adapted.requiredMetricIds).toEqual(
       expect.arrayContaining(["factory_service_response_rate", "factory_fulfillment_rate"])
     );
+    expect(adapted.domainModuleIds).toEqual(expect.arrayContaining(["service", "factory_custom", "guardrail"]));
     expect(adapted.dataSourceIds).toContain("factory_workbench");
     expect(adapted.generatedActionTemplateIds).toEqual([]);
   });
