@@ -26,7 +26,35 @@ export const dataSourceDefinitions: DataSourceDefinition[] = [
     cadence: "daily",
     freshnessRule: "daily",
     confidence: "high",
-    providedMetricIds: ["total_exposure", "visitors", "inquiries", "payments", "payment_amount"]
+    providedMetricIds: [
+      "total_exposure",
+      "visitors",
+      "inquiries",
+      "payments",
+      "payment_amount",
+      "repeat_buyer_rate",
+      "repeat_payment_amount"
+    ]
+  },
+  {
+    id: "product_growth_backend",
+    name: "商品成长后台",
+    sourceType: "manual",
+    ownerRole: "operator",
+    cadence: "30d",
+    freshnessRule: "daily",
+    confidence: "medium",
+    providedMetricIds: ["procurement_index_score", "town_shop_treasure_count", "quality_issue_product_count"]
+  },
+  {
+    id: "product_list",
+    name: "商品列表",
+    sourceType: "copy_table",
+    ownerRole: "operator",
+    cadence: "daily",
+    freshnessRule: "daily",
+    confidence: "medium",
+    providedMetricIds: ["quality_issue_product_count"]
   },
   {
     id: "factory_workbench",
@@ -82,10 +110,15 @@ export const dataSourceDefinitions: DataSourceDefinition[] = [
       "inquiries",
       "payments",
       "payment_amount",
+      "procurement_index_score",
+      "town_shop_treasure_count",
+      "quality_issue_product_count",
       "factory_service_response_rate",
       "factory_fulfillment_rate",
       "custom_trade_points",
       "contract_payment_rate",
+      "repeat_buyer_rate",
+      "repeat_payment_amount",
       "gross_margin_rate"
     ]
   }

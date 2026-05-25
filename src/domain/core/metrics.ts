@@ -72,6 +72,48 @@ export const metricDefinitions: MetricDefinition[] = [
     guardrailLevel: "blocking"
   },
   {
+    id: "procurement_index_score",
+    name: "采购指数",
+    domainId: "product_growth",
+    sourceIds: ["product_growth_backend", "manual_input"],
+    unit: "score",
+    direction: "higher_is_better",
+    cadence: "30d",
+    definition: "1688 商品成长体系中用于判断潜力商品和采购指数 4.0 商品的综合分。",
+    isOfficialMetric: true,
+    canBeGoalMetric: true,
+    canBeVerificationMetric: true,
+    guardrailLevel: "watch"
+  },
+  {
+    id: "town_shop_treasure_count",
+    name: "镇店之宝商品数",
+    domainId: "product_growth",
+    sourceIds: ["product_growth_backend", "manual_input"],
+    unit: "count",
+    direction: "higher_is_better",
+    cadence: "30d",
+    definition: "当前可配置或已配置为镇店之宝的商品数量。",
+    isOfficialMetric: true,
+    canBeGoalMetric: true,
+    canBeVerificationMetric: true,
+    guardrailLevel: "none"
+  },
+  {
+    id: "quality_issue_product_count",
+    name: "待优化商品数",
+    domainId: "product_growth",
+    sourceIds: ["product_growth_backend", "product_list", "manual_input"],
+    unit: "count",
+    direction: "lower_is_better",
+    cadence: "daily",
+    definition: "商品成长或商品列表中提示需要优化发布质量、属性、服务或表达的商品数量。",
+    isOfficialMetric: true,
+    canBeGoalMetric: true,
+    canBeVerificationMetric: true,
+    guardrailLevel: "watch"
+  },
+  {
     id: "total_exposure",
     name: "总曝光",
     domainId: "trade_funnel",
@@ -196,6 +238,34 @@ export const metricDefinitions: MetricDefinition[] = [
     canBeGoalMetric: true,
     canBeVerificationMetric: true,
     guardrailLevel: "watch"
+  },
+  {
+    id: "repeat_buyer_rate",
+    name: "老客复购率",
+    domainId: "customer_repeat",
+    sourceIds: ["sycm_core_board", "manual_input"],
+    unit: "%",
+    direction: "higher_is_better",
+    cadence: "30d",
+    definition: "近 30 天有复购行为的买家占比。",
+    isOfficialMetric: false,
+    canBeGoalMetric: true,
+    canBeVerificationMetric: true,
+    guardrailLevel: "watch"
+  },
+  {
+    id: "repeat_payment_amount",
+    name: "老客支付金额",
+    domainId: "customer_repeat",
+    sourceIds: ["sycm_core_board", "manual_input"],
+    unit: "money",
+    direction: "higher_is_better",
+    cadence: "30d",
+    definition: "近 30 天来自老客或复购客户的支付金额。",
+    isOfficialMetric: false,
+    canBeGoalMetric: true,
+    canBeVerificationMetric: true,
+    guardrailLevel: "none"
   },
   {
     id: "gross_margin_rate",

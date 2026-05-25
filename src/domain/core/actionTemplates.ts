@@ -28,6 +28,19 @@ export const actionTemplates: ActionTemplate[] = [
     stopPolicy: "refund_queue_cleared"
   },
   {
+    id: "product-growth-quality-check",
+    domainId: "product_growth",
+    bottleneckIds: ["product_growth_gap"],
+    metricIds: ["procurement_index_score", "quality_issue_product_count"],
+    frequency: "periodic_check",
+    ownerRole: "operator",
+    checklist: ["筛选采购指数未达 4.0 或待优化商品", "按商品诊断补齐类目、标题、属性、服务和详情表达"],
+    verificationMetricIds: ["procurement_index_score", "town_shop_treasure_count", "quality_issue_product_count"],
+    verificationWindow: "7d",
+    evidencePolicy: "optional_note",
+    stopPolicy: "product_growth_recovered"
+  },
+  {
     id: "factory-inquiry-followup",
     domainId: "factory_custom",
     bottleneckIds: ["factory_response_gap"],
@@ -52,6 +65,19 @@ export const actionTemplates: ActionTemplate[] = [
     verificationWindow: "7d",
     evidencePolicy: "optional_note",
     stopPolicy: "contract_payment_recovered"
+  },
+  {
+    id: "repeat-buyer-recall",
+    domainId: "customer_repeat",
+    bottleneckIds: ["customer_repeat_gap"],
+    metricIds: ["repeat_buyer_rate", "repeat_payment_amount"],
+    frequency: "periodic_check",
+    ownerRole: "customer_service",
+    checklist: ["筛选近 30 天已购未复购客户", "按商品消耗周期发送补货、复购或定制提醒"],
+    verificationMetricIds: ["repeat_buyer_rate", "repeat_payment_amount"],
+    verificationWindow: "30d",
+    evidencePolicy: "optional_note",
+    stopPolicy: "repeat_rate_recovered"
   },
   {
     id: "margin-risk-review",

@@ -11,6 +11,15 @@ export const domainDefinitions: DomainDefinition[] = [
     guardrailMetricIds: ["intervention_rate", "refund_processing_duration"]
   },
   {
+    id: "product_growth",
+    name: "商品成长域",
+    purpose: "采购指数、镇店之宝、商品质量和商品成长路径。",
+    primaryMetricIds: ["procurement_index_score", "town_shop_treasure_count", "quality_issue_product_count"],
+    sourceIds: ["product_growth_backend", "product_list", "manual_input"],
+    ownerRoles: ["operator", "manager"],
+    guardrailMetricIds: ["gross_margin_rate", "intervention_rate"]
+  },
+  {
     id: "trade_funnel",
     name: "交易漏斗域",
     purpose: "曝光、访客、询盘、支付和成交金额。",
@@ -32,6 +41,15 @@ export const domainDefinitions: DomainDefinition[] = [
     sourceIds: ["factory_workbench", "manual_input"],
     ownerRoles: ["operator", "customer_service", "manager"],
     guardrailMetricIds: ["gross_margin_rate", "intervention_rate"]
+  },
+  {
+    id: "customer_repeat",
+    name: "老客复购域",
+    purpose: "老客复购、客户回访、补货提醒和客户分层。",
+    primaryMetricIds: ["repeat_buyer_rate", "repeat_payment_amount"],
+    sourceIds: ["sycm_core_board", "manual_input"],
+    ownerRoles: ["operator", "customer_service", "manager"],
+    guardrailMetricIds: ["gross_margin_rate"]
   },
   {
     id: "guardrail",

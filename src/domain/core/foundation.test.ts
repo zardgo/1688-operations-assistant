@@ -14,6 +14,29 @@ const actionTemplateIds = new Set(actionTemplates.map((action) => action.id));
 const domainIds = new Set(domainDefinitions.map((domain) => domain.id));
 
 describe("domain foundation seed data", () => {
+  it("covers the six long-term business domains", () => {
+    expect(domainDefinitions.map((domain) => domain.id)).toEqual(
+      expect.arrayContaining([
+        "service",
+        "product_growth",
+        "trade_funnel",
+        "factory_custom",
+        "customer_repeat",
+        "guardrail"
+      ])
+    );
+
+    for (const domain of domainDefinitions) {
+      for (const metricId of domain.primaryMetricIds.concat(domain.guardrailMetricIds)) {
+        expect(metricIds.has(metricId)).toBe(true);
+      }
+
+      for (const sourceId of domain.sourceIds) {
+        expect(dataSourceIds.has(sourceId)).toBe(true);
+      }
+    }
+  });
+
   it("contains the first two goal mappings", () => {
     expect(goalMappings.map((goal) => goal.goalId)).toEqual(expect.arrayContaining(["protect_service", "factory_bronze"]));
   });

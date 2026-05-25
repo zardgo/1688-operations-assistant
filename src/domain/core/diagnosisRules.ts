@@ -26,6 +26,18 @@ export const diagnosisRules: DiagnosisRule[] = [
     guardrailChecks: ["intervention_rate"]
   },
   {
+    id: "procurement-index-low",
+    domainId: "product_growth",
+    inputMetricIds: ["procurement_index_score", "quality_issue_product_count"],
+    condition: "procurement_index_below_target_or_quality_issue_exists",
+    bottleneckId: "product_growth_gap",
+    severityPolicy: "official_goal_gap",
+    confidencePolicy: "requires_product_growth_reading",
+    recommendedActionTemplateIds: ["product-growth-quality-check"],
+    fallbackWhenMissingData: "ask_for_product_growth_reading",
+    guardrailChecks: ["gross_margin_rate", "intervention_rate"]
+  },
+  {
     id: "factory-service-response-low",
     domainId: "factory_custom",
     inputMetricIds: ["factory_service_response_rate", "ww_3min_response_rate"],
@@ -47,6 +59,18 @@ export const diagnosisRules: DiagnosisRule[] = [
     confidencePolicy: "requires_factory_reading",
     recommendedActionTemplateIds: ["contract-payment-followup"],
     fallbackWhenMissingData: "ask_for_factory_workbench_reading",
+    guardrailChecks: ["gross_margin_rate"]
+  },
+  {
+    id: "repeat-buyer-rate-low",
+    domainId: "customer_repeat",
+    inputMetricIds: ["repeat_buyer_rate", "repeat_payment_amount"],
+    condition: "repeat_buyer_rate_below_target",
+    bottleneckId: "customer_repeat_gap",
+    severityPolicy: "largest_gap_first",
+    confidencePolicy: "requires_30d_reading",
+    recommendedActionTemplateIds: ["repeat-buyer-recall"],
+    fallbackWhenMissingData: "ask_for_sycm_repeat_reading",
     guardrailChecks: ["gross_margin_rate"]
   },
   {
