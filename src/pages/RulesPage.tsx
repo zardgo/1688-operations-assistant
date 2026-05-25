@@ -1,6 +1,7 @@
 import { ShieldCheck, Target } from "lucide-react";
 import { PageHeader } from "../components/layout/PageHeader";
 import type { V2GoalId, buildV2GoalDashboard, getDefaultRuleVersions } from "../lib/operations";
+import type { OfficialArticleSource } from "../lib/knowledge/types";
 
 type RuleVersion = ReturnType<typeof getDefaultRuleVersions>[number];
 
@@ -15,6 +16,7 @@ type RulesPageProps = {
   activeRules: RuleVersion[];
   dashboard: ReturnType<typeof buildV2GoalDashboard>;
   goalId: V2GoalId;
+  officialArticles: OfficialArticleSource[];
   ruleForm: RuleForm;
   ruleVersions: RuleVersion[];
   goalLabel: (goalId: V2GoalId) => string;
@@ -28,6 +30,7 @@ export function RulesPage({
   activeRules,
   dashboard,
   goalId,
+  officialArticles,
   ruleForm,
   ruleVersions,
   goalLabel,
@@ -72,6 +75,8 @@ export function RulesPage({
                       <span className="rule-warning">来源待补</span>
                     )}
                   </dd>
+                  <dt>官方知识来源</dt>
+                  <dd>{formatRuleArticleSources(rule, officialArticles)}</dd>
                   <dt>规则状态</dt>
                   <dd>{formatRuleStatus(rule.status)}</dd>
                   <dt>来源可信度</dt>
@@ -157,6 +162,21 @@ export function RulesPage({
             <p><strong>使用原则</strong>active 才能用于派单；source_found 只做弱提示，draft 不进入自动派单。</p>
             <p><strong>更新动作</strong>官方规则变更后，新增规则版本，标记来源可信度，再按后台口径采用。</p>
           </div>
+          <div className="section-title stacked-title">
+            <ShieldCheck aria-hidden="true" />
+            <h2>官方知识来源</h2>
+          </div>
+          <div className="knowledge-source-list">
+            {officialArticles
+              .filter((article) => article.isComplete)
+              .slice(0, 8)
+              .map((article) => (
+                <article key={article.id}>
+                  <strong>{article.title}</strong>
+                  <span>{formatArticleCategory(article.category)}</span>
+                </article>
+              ))}
+          </div>
         </aside>
       </section>
     </>
@@ -184,4 +204,29 @@ function formatRuleStatusBadge(rule: RuleVersion): string {
 
 function isValidSourceUrl(sourceUrl: string): boolean {
   return /^https?:\/\/.+/.test(sourceUrl) && !sourceUrl.includes("example.com");
+}
+
+function formatRuleArticleSources(rule: RuleVersion, articles: OfficialArticleSource[]): string {
+  const ids = rule.sourceArticleIds ?? [];
+  if (ids.length === 0) return "人工规则，未绑定官方文章";
+  const titles = ids
+    .map((id) => articles.find((article) => article.id === id)?.title)
+    .filter((title): title is string => Boolean(title));
+  return titles.length > 0 ? titles.join("、") : "来源待补";
+}
+
+function formatArticleCategory(category: OfficialArticleSource["category"]): string {
+  const labels: Record<OfficialArticleSource["category"], string> = {
+    vertical_business: "垂直生意",
+    member_service: "会员服务",
+    operating_tools: "经营工具",
+    search_operation: "搜索运营",
+    rules: "1688 规则",
+    advertising: "广告投放",
+    factory: "找工厂",
+    product_growth: "商品成长",
+    fulfillment: "履约服务",
+    skipped_or_incomplete: "残缺/弱参考"
+  };
+  return labels[category];
 }

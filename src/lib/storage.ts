@@ -7,7 +7,7 @@ export const APP_STORAGE_SCHEMA_VERSION = 2;
 
 export type StorageAdapter = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
-export type StoredPage = "command" | "data" | "analysis" | "product" | "review" | "rules";
+export type StoredPage = "command" | "data" | "traffic_map" | "analysis" | "product" | "review" | "rules";
 export type WorkspaceMode = "employee" | "manager";
 
 export type MissionStatus = "pending" | "completed" | "skipped" | "expired" | "verified" | "inconclusive";

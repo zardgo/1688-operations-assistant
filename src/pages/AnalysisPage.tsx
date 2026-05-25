@@ -2,7 +2,9 @@ import { Activity, BarChart3, BookOpenCheck, Brain, CheckCircle2, ClipboardList,
 import { PageHeader } from "../components/layout/PageHeader";
 import { MetricCard } from "../components/ui/MetricCard";
 import { StatusBadge } from "../components/ui/StatusBadge";
+import { trafficBattleMap } from "../data/knowledge/trafficBattleMap";
 import type { DataQualityReport, DiagnosisMeta } from "../lib/dataQuality";
+import type { MetricKnowledgeContext } from "../lib/knowledge/selectors";
 import type {
   V5ChecklistBacktestResult,
   buildV2ActionPlan,
@@ -21,6 +23,7 @@ type AnalysisPageProps = {
   dashboard: ReturnType<typeof buildV2GoalDashboard>;
   diagnosisMeta: DiagnosisMeta;
   firstChecklistAction: ReturnType<typeof buildV5OperatingLoop>["checklist"][number] | null;
+  primaryKnowledgeContext: MetricKnowledgeContext;
   responseRateBenchmark: ReturnType<typeof buildResponseRateBenchmark>;
   v3Review: ReturnType<typeof buildV3OperatingReview>;
   v5BacktestAfter: string;
@@ -39,6 +42,7 @@ export function AnalysisPage({
   dashboard,
   diagnosisMeta,
   firstChecklistAction,
+  primaryKnowledgeContext,
   responseRateBenchmark,
   v3Review,
   v5BacktestAfter,
@@ -94,6 +98,16 @@ export function AnalysisPage({
             <dl>
               <dt>判断依据</dt>
               <dd>{commandCenter.primaryBlocker?.whyItMatters ?? "核心指标已过线，优先复盘已有动作。"}</dd>
+              <dt>所属战场</dt>
+              <dd>
+                {primaryKnowledgeContext.battleNodes.length > 0
+                  ? primaryKnowledgeContext.battleNodes.map((node) => node.title).join("、")
+                  : "暂无战场映射"}
+              </dd>
+              <dt>上游可能原因</dt>
+              <dd>{formatNodeTitles(primaryKnowledgeContext.battleNodes.flatMap((node) => node.upstreamNodeIds))}</dd>
+              <dt>下游影响</dt>
+              <dd>{formatNodeTitles(primaryKnowledgeContext.battleNodes.flatMap((node) => node.downstreamNodeIds))}</dd>
               <dt>可能误判原因</dt>
               <dd>{formatReasonCodes(diagnosisMeta.reasonCodes)}</dd>
               <dt>需要补充的数据</dt>
@@ -112,6 +126,33 @@ export function AnalysisPage({
             <p><strong>同行优秀</strong>{responseRateBenchmark.excellentLabel}</p>
           </div>
         </aside>
+      </section>
+
+      <section className="panel knowledge-diagnosis-panel">
+        <div className="section-title">
+          <BookOpenCheck aria-hidden="true" />
+          <h2>流量战场与官方依据</h2>
+        </div>
+        <div className="battle-context-grid">
+          {primaryKnowledgeContext.battleNodes.map((node) => (
+            <article key={node.id}>
+              <span>{formatTrafficStage(node.stage)}</span>
+              <strong>{node.title}</strong>
+              <p>{node.roleInTrafficSystem}</p>
+              <small>核查动作：{node.recommendedActions.slice(0, 2).join("、")}</small>
+            </article>
+          ))}
+        </div>
+        <div className="official-basis-list diagnosis-official-list">
+          {primaryKnowledgeContext.knowledgeCards.map((card) => (
+            <article key={card.id}>
+              <span>{card.confidence === "weak_reference" ? "参考资料" : "官方依据"}</span>
+              <strong>{card.title}</strong>
+              <p>{card.summary}</p>
+              <small>{card.actionGuides.slice(0, 2).join("；")}</small>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="v5-grid">
@@ -426,4 +467,36 @@ function formatReasonCodes(codes: DiagnosisMeta["reasonCodes"]): string {
     rule_not_active: "规则未采用"
   };
   return codes.map((code) => labels[code]).join("、");
+}
+
+function formatNodeTitles(nodeIds: string[]): string {
+  const titles = Array.from(
+    new Set(
+      nodeIds
+        .map((id) => trafficBattleMap.nodes.find((node) => node.id === id)?.title)
+        .filter((title): title is string => Boolean(title))
+    )
+  );
+  return titles.length > 0 ? titles.join("、") : "暂无";
+}
+
+function formatTrafficStage(stage: (typeof trafficBattleMap.nodes)[number]["stage"]): string {
+  const labels: Record<(typeof trafficBattleMap.nodes)[number]["stage"], string> = {
+    market_positioning: "市场定位",
+    product_supply: "商品供给",
+    search_exposure: "搜索曝光",
+    recommendation_exposure: "推荐曝光",
+    image_search: "图搜承接",
+    ad_traffic: "广告投放",
+    visitor_click: "访客点击",
+    inquiry_conversion: "询盘转化",
+    quote_conversion: "报价成交",
+    payment_conversion: "支付成交",
+    fulfillment_service: "履约服务",
+    repeat_purchase: "复购沉淀",
+    membership_rights: "会员权益",
+    factory_level: "找工厂冲级",
+    tooling_efficiency: "工具效率"
+  };
+  return labels[stage];
 }

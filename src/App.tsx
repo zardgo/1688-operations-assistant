@@ -42,6 +42,10 @@ import { DataPage } from "./pages/DataPage";
 import { ProductPage } from "./pages/ProductPage";
 import { ReviewPage } from "./pages/ReviewPage";
 import { RulesPage } from "./pages/RulesPage";
+import { TrafficMapPage } from "./pages/TrafficMapPage";
+import { officialArticles } from "./data/knowledge/officialArticles";
+import { getKnowledgeContextForMetric } from "./lib/knowledge/selectors";
+import type { MetricKnowledgeContext } from "./lib/knowledge/selectors";
 import type { Page } from "./pages/pageConfig";
 import "./styles.css";
 
@@ -241,6 +245,19 @@ const initialValues: Record<V2MetricId, number> = {
   ww_3min_response_rate: 0.52,
   factory_service_response_rate_30d: 0.55,
   pickup_48h_rate_30d: 0.96,
+  totalExposure: 6641,
+  naturalExposureShare: 0.036,
+  adExposureShare: 0.964,
+  exposureVisitorRate: 0.013,
+  visitorInquiryRate: 0.071,
+  inquiryPaymentRate: 0.167,
+  adCostPerInquiry: 24.33,
+  adCostPerPayment: 146,
+  adSpendShare: 0.146,
+  paymentAmount: 1000,
+  visitors: 84,
+  inquiries: 6,
+  payments: 1,
   lighthouse_score: 88,
   store_service_star_level: 4,
   lighthouse_logistics_score: 90,
@@ -414,6 +431,20 @@ export default function App() {
       }),
     [responseRateTarget, values.ww_3min_response_rate]
   );
+  const actionKnowledgeContexts = useMemo<Record<string, MetricKnowledgeContext>>(
+    () =>
+      Object.fromEntries(
+        commandCenter.todayActions.map((action) => [action.id, getKnowledgeContextForMetric(action.targetMetricId)])
+      ),
+    [commandCenter.todayActions]
+  );
+  const primaryKnowledgeContext = useMemo(
+    () =>
+      commandCenter.primaryBlocker
+        ? getKnowledgeContextForMetric(commandCenter.primaryBlocker.metricId)
+        : getKnowledgeContextForMetric("weekly_sop_count"),
+    [commandCenter.primaryBlocker]
+  );
 
   useEffect(() => {
     setMissionInstances((current) =>
@@ -584,6 +615,7 @@ export default function App() {
           commandCenter={commandCenter}
           dataQualityReport={dataQualityReport}
           diagnosisMeta={diagnosisMeta}
+          actionKnowledgeContexts={actionKnowledgeContexts}
           completedMissionActionIds={completedMissionActionIds}
           executionLogs={executionLogs.filter((log) => log.missionId === activeMission.id)}
           missionCompletedCount={missionCompletedCount}
@@ -622,6 +654,7 @@ export default function App() {
           dashboard={dashboard}
           diagnosisMeta={diagnosisMeta}
           firstChecklistAction={firstChecklistAction}
+          primaryKnowledgeContext={primaryKnowledgeContext}
           responseRateBenchmark={responseRateBenchmark}
           v3Review={v3Review}
           v5BacktestAfter={v5BacktestAfter}
@@ -639,6 +672,7 @@ export default function App() {
           dashboard={dashboard}
           goalId={goalId}
           goalLabel={goalLabel}
+          officialArticles={officialArticles}
           ruleForm={ruleForm}
           ruleVersions={ruleVersions}
           onAddDraftRule={addDraftRule}
@@ -659,6 +693,8 @@ export default function App() {
           onRunBacktest={runBacktest}
         />
       ) : null}
+
+      {page === "traffic_map" ? <TrafficMapPage currentGoalId={goalId} /> : null}
 
       {page === "product" ? <ProductPage v3Review={v3Review} /> : null}
     </AppShell>

@@ -91,13 +91,14 @@ describe("1688 operations assistant UI", () => {
     expect(screen.queryByText(/小号刷回复/)).not.toBeInTheDocument();
   });
 
-  it("shows only six primary navigation items", () => {
+  it("shows seven primary navigation items including the traffic battle map", () => {
     render(<App />);
 
     const nav = screen.getByRole("navigation", { name: "主导航" });
-    expect(nav.querySelectorAll("button")).toHaveLength(6);
+    expect(nav.querySelectorAll("button")).toHaveLength(7);
     expect(screen.getByRole("button", { name: "今日任务" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "数据录入" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "流量地图" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "卡点诊断" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "商品诊断" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "动作复盘" })).toBeInTheDocument();

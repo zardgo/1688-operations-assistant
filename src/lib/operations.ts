@@ -150,6 +150,19 @@ export type V2MetricId =
   | "ww_3min_response_rate"
   | "factory_service_response_rate_30d"
   | "pickup_48h_rate_30d"
+  | "totalExposure"
+  | "naturalExposureShare"
+  | "adExposureShare"
+  | "exposureVisitorRate"
+  | "visitorInquiryRate"
+  | "inquiryPaymentRate"
+  | "adCostPerInquiry"
+  | "adCostPerPayment"
+  | "adSpendShare"
+  | "paymentAmount"
+  | "visitors"
+  | "inquiries"
+  | "payments"
   | "lighthouse_score"
   | "store_service_star_level"
   | "lighthouse_logistics_score"
@@ -207,6 +220,7 @@ export type RuleVersion = {
   name: string;
   publishedAt: string;
   sourceUrl: string;
+  sourceArticleIds?: string[];
   scope: string;
   status: "draft" | "source_found" | "active" | "deprecated";
   sourceConfidence: "low" | "medium" | "high";
@@ -654,6 +668,7 @@ const ruleVersions: RuleVersion[] = [
     name: "找工厂铜牌规则",
     publishedAt: "2026-05-01",
     sourceUrl: "https://factory.1688.com/rules/factory-level",
+    sourceArticleIds: ["article-factory-how-to"],
     scope: "保温杯 / 找工厂 / 铜牌升级",
     status: "source_found",
     sourceConfidence: "medium",
@@ -666,6 +681,7 @@ const ruleVersions: RuleVersion[] = [
     name: "找工厂银牌规则",
     publishedAt: "2026-05-01",
     sourceUrl: "https://factory.1688.com/rules/factory-level",
+    sourceArticleIds: ["article-factory-how-to"],
     scope: "保温杯 / 找工厂 / 银牌升级",
     status: "source_found",
     sourceConfidence: "medium",
@@ -678,6 +694,7 @@ const ruleVersions: RuleVersion[] = [
     name: "找工厂金牌规则",
     publishedAt: "2026-05-01",
     sourceUrl: "https://factory.1688.com/rules/factory-level",
+    sourceArticleIds: ["article-factory-how-to"],
     scope: "保温杯 / 找工厂 / 金牌升级",
     status: "source_found",
     sourceConfidence: "medium",
@@ -690,6 +707,7 @@ const ruleVersions: RuleVersion[] = [
     name: "服务体验与响应规则",
     publishedAt: "2026-05-01",
     sourceUrl: "https://rule.1688.com/rule/detail",
+    sourceArticleIds: ["article-buyer-protection", "article-official-logistics", "article-new-workbench-ai"],
     scope: "保温杯 / 服务体验 / 响应与履约",
     status: "source_found",
     sourceConfidence: "medium",
@@ -702,6 +720,7 @@ const ruleVersions: RuleVersion[] = [
     name: "店铺 L 等级成长规则",
     publishedAt: "2026-05-01",
     sourceUrl: "https://work.1688.com/rule/l-level",
+    sourceArticleIds: ["article-product-growth-basic", "article-ai-chengxintong-panorama"],
     scope: "保温杯 / 店铺成长 / L 等级",
     status: "source_found",
     sourceConfidence: "low",
@@ -1020,6 +1039,240 @@ const v2MetricDefinitions: V2MetricDefinition[] = [
     method: "写清适用场景、操作步骤、所需截图、失败停止条件和复盘频率。",
     evidence: ["SOP 标题", "适用场景", "操作步骤"],
     reviewQuestion: "这条 SOP 下周换人执行还会有效吗？"
+  },
+  {
+    id: "totalExposure",
+    label: "总曝光",
+    cadence: "daily",
+    source: "生意参谋首页核心看板",
+    format: "count",
+    direction: "min",
+    priority: "P2",
+    sort: 200,
+    whyItMatters: "总曝光是所有搜索、推荐、图搜和广告入口的上游量。",
+    targets: {},
+    pathTitle: "先确认曝光入口",
+    checkpoint: "每日看曝光来源和变化。",
+    actionTitle: "核查总曝光来源",
+    method: "把总曝光拆成自然、广告、推荐和图搜入口，确认是否有异常波动。",
+    evidence: ["生意参谋曝光截图"],
+    reviewQuestion: "曝光变化来自哪个流量入口？"
+  },
+  {
+    id: "naturalExposureShare",
+    label: "自然曝光占比",
+    cadence: "daily",
+    source: "每日经营事实表自动计算",
+    format: "percent",
+    direction: "min",
+    priority: "P2",
+    sort: 201,
+    whyItMatters: "自然曝光占比说明免费流量是否健康。",
+    targets: {},
+    pathTitle: "拆自然曝光质量",
+    checkpoint: "每日看自然曝光和搜索/推荐入口变化。",
+    actionTitle: "核查自然曝光占比",
+    method: "对比自然曝光、广告曝光和访客变化，判断免费流量是否下滑。",
+    evidence: ["自然曝光数据截图"],
+    reviewQuestion: "自然曝光是否带来有效访客？"
+  },
+  {
+    id: "adExposureShare",
+    label: "广告曝光占比",
+    cadence: "daily",
+    source: "每日经营事实表自动计算",
+    format: "percent",
+    direction: "max",
+    priority: "P2",
+    sort: 202,
+    whyItMatters: "广告曝光占比过高时，增长可能被付费流量掩盖。",
+    targets: {},
+    pathTitle: "用广告放大已验证链路",
+    checkpoint: "每日看广告曝光和询盘/支付是否同步增长。",
+    actionTitle: "核查广告曝光占比",
+    method: "把广告曝光和访客、询盘、支付放在同一天比对。",
+    evidence: ["广告曝光截图", "询盘支付数据"],
+    reviewQuestion: "广告曝光是否带来合格询盘？"
+  },
+  {
+    id: "exposureVisitorRate",
+    label: "曝光访客率",
+    cadence: "daily",
+    source: "每日经营事实表自动计算",
+    format: "percent",
+    direction: "min",
+    priority: "P1",
+    sort: 203,
+    whyItMatters: "曝光访客率低通常说明标题、主图、价格或商品标签不匹配买家意图。",
+    targets: {},
+    pathTitle: "修曝光到访客承接",
+    checkpoint: "每日找高曝光低访客商品。",
+    actionTitle: "核查曝光访客率",
+    method: "筛出曝光高但访客低的商品，检查标题、主图和价格承诺。",
+    evidence: ["曝光访客率截图", "商品主图标题截图"],
+    reviewQuestion: "买家为什么看到了但没点进来？"
+  },
+  {
+    id: "visitorInquiryRate",
+    label: "访客询盘率",
+    cadence: "daily",
+    source: "每日经营事实表自动计算",
+    format: "percent",
+    direction: "min",
+    priority: "P1",
+    sort: 204,
+    whyItMatters: "访客询盘率是详情页、定制说明、MOQ、客服承接是否清楚的核心信号。",
+    targets: {},
+    pathTitle: "修访客到询盘承接",
+    checkpoint: "每日看主推商品访客询盘率。",
+    actionTitle: "核查访客询盘率",
+    method: "检查 MOQ、拿样、定制、开票、交期是否前置，并核查客服首响。",
+    evidence: ["访客询盘率截图", "详情页截图", "客服响应截图"],
+    reviewQuestion: "访客为什么不发起询盘？"
+  },
+  {
+    id: "inquiryPaymentRate",
+    label: "询盘支付率",
+    cadence: "daily",
+    source: "每日经营事实表自动计算",
+    format: "percent",
+    direction: "min",
+    priority: "P1",
+    sort: 205,
+    whyItMatters: "询盘支付率说明报价、样品、交期、信任和合约支付是否顺畅。",
+    targets: {},
+    pathTitle: "修询盘到支付承接",
+    checkpoint: "每日记录询盘后未支付原因。",
+    actionTitle: "核查询盘支付率",
+    method: "把报价后沉默、价格不合适、交期不合适、付款方式问题分开记录。",
+    evidence: ["询盘支付率截图", "未支付原因表"],
+    reviewQuestion: "询盘为什么没有成交？"
+  },
+  {
+    id: "adCostPerInquiry",
+    label: "单询盘广告成本",
+    cadence: "daily",
+    source: "每日经营事实表自动计算",
+    format: "count",
+    direction: "max",
+    priority: "P2",
+    sort: 206,
+    whyItMatters: "单询盘广告成本用于判断付费流量是否吞掉毛利。",
+    targets: {},
+    pathTitle: "约束广告询盘成本",
+    checkpoint: "每日看广告消耗与询盘数。",
+    actionTitle: "核查单询盘广告成本",
+    method: "按计划、商品、词包记录广告消耗与询盘质量。",
+    evidence: ["广告消耗截图", "询盘清单"],
+    reviewQuestion: "广告带来的询盘是否值得继续买？"
+  },
+  {
+    id: "adCostPerPayment",
+    label: "单支付广告成本",
+    cadence: "daily",
+    source: "每日经营事实表自动计算",
+    format: "count",
+    direction: "max",
+    priority: "P2",
+    sort: 207,
+    whyItMatters: "单支付广告成本用于判断成交是否能覆盖真实成本。",
+    targets: {},
+    pathTitle: "约束广告成交成本",
+    checkpoint: "每日看广告消耗与支付成交。",
+    actionTitle: "核查单支付广告成本",
+    method: "按订单核对广告成本、毛利和售后风险。",
+    evidence: ["广告消耗截图", "支付订单", "毛利表"],
+    reviewQuestion: "广告成交是否真赚钱？"
+  },
+  {
+    id: "adSpendShare",
+    label: "广告费率",
+    cadence: "daily",
+    source: "每日经营事实表自动计算",
+    format: "percent",
+    direction: "max",
+    priority: "P2",
+    sort: 208,
+    whyItMatters: "广告费率过高会让冲级和成交变成亏损增长。",
+    targets: {},
+    pathTitle: "控制广告费率",
+    checkpoint: "每日看广告消耗占支付金额比例。",
+    actionTitle: "核查广告费率",
+    method: "广告费率高时先停低毛利款放量，再复核询盘和支付链路。",
+    evidence: ["广告费率截图", "毛利表"],
+    reviewQuestion: "广告预算是否在放大有效利润？"
+  },
+  {
+    id: "paymentAmount",
+    label: "支付金额",
+    cadence: "daily",
+    source: "生意参谋首页核心看板",
+    format: "count",
+    direction: "min",
+    priority: "P2",
+    sort: 209,
+    whyItMatters: "支付金额是成交规模，但必须和毛利、履约、售后一起看。",
+    targets: {},
+    pathTitle: "复核成交质量",
+    checkpoint: "每日看成交金额和订单毛利。",
+    actionTitle: "核查支付金额",
+    method: "将支付金额拆到订单、客户、SKU 和毛利。",
+    evidence: ["支付金额截图", "订单毛利表"],
+    reviewQuestion: "成交规模是否带来真实利润？"
+  },
+  {
+    id: "visitors",
+    label: "访客数",
+    cadence: "daily",
+    source: "生意参谋首页核心看板",
+    format: "count",
+    direction: "min",
+    priority: "P2",
+    sort: 210,
+    whyItMatters: "访客数是曝光后真实进入商品或店铺的买家量。",
+    targets: {},
+    pathTitle: "核查访客质量",
+    checkpoint: "每日看访客来源和询盘质量。",
+    actionTitle: "核查访客数",
+    method: "把访客来源和询盘、支付放在同一张表里看。",
+    evidence: ["访客数截图"],
+    reviewQuestion: "访客是否带来有效询盘？"
+  },
+  {
+    id: "inquiries",
+    label: "询盘数",
+    cadence: "daily",
+    source: "生意参谋、旺旺、找工厂询盘数据",
+    format: "count",
+    direction: "min",
+    priority: "P1",
+    sort: 211,
+    whyItMatters: "询盘数是从流量进入商机的第一层经营反馈。",
+    targets: {},
+    pathTitle: "核查询盘来源",
+    checkpoint: "每日按来源记录询盘。",
+    actionTitle: "核查询盘数",
+    method: "把旺旺、找工厂、电话等询盘按有效/无效分类。",
+    evidence: ["询盘清单"],
+    reviewQuestion: "询盘是否来自目标买家？"
+  },
+  {
+    id: "payments",
+    label: "支付订单数",
+    cadence: "daily",
+    source: "生意参谋首页核心看板",
+    format: "count",
+    direction: "min",
+    priority: "P2",
+    sort: 212,
+    whyItMatters: "支付订单数用于验证询盘转化是否真的发生。",
+    targets: {},
+    pathTitle: "核查支付订单",
+    checkpoint: "每日看支付订单、客单价和毛利。",
+    actionTitle: "核查支付订单数",
+    method: "把支付订单关联到询盘来源和报价动作。",
+    evidence: ["支付订单截图"],
+    reviewQuestion: "哪些询盘最终成交了？"
   }
 ];
 
@@ -1193,6 +1446,14 @@ export function buildV2GoalDashboard(
 
 export function getDefaultRuleVersions(): RuleVersion[] {
   return ruleVersions.map((rule) => ({ ...rule, appliesToGoalIds: [...rule.appliesToGoalIds] }));
+}
+
+export function getKnownV2MetricIds(): V2MetricId[] {
+  return v2MetricDefinitions.map((definition) => definition.id);
+}
+
+export function getV2MetricLabel(metricId: V2MetricId): string {
+  return getV2MetricDefinition(metricId).label;
 }
 
 export function getRuleVersionsForGoal(goalId: V2GoalId, rules: RuleVersion[] = ruleVersions): RuleVersion[] {

@@ -3,6 +3,7 @@ import { MetricCard } from "../components/ui/MetricCard";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import type { buildV8CommandCenter } from "../lib/operations";
 import type { DataQualityReport, DiagnosisMeta } from "../lib/dataQuality";
+import type { MetricKnowledgeContext } from "../lib/knowledge/selectors";
 import type { ExecutionLog } from "../lib/storage";
 
 type CommandCenter = ReturnType<typeof buildV8CommandCenter>;
@@ -18,6 +19,7 @@ type CommandPageProps = {
   missionCompletedCount: number;
   dataQualityReport: DataQualityReport;
   diagnosisMeta: DiagnosisMeta;
+  actionKnowledgeContexts: Record<string, MetricKnowledgeContext>;
   completedMissionActionIds: string[];
   executionLogs: ExecutionLog[];
   onToggleMissionAction: (id: string) => void;
@@ -33,6 +35,7 @@ export function CommandPage({
   missionCompletedCount,
   dataQualityReport,
   diagnosisMeta,
+  actionKnowledgeContexts,
   completedMissionActionIds,
   executionLogs,
   onToggleMissionAction,
@@ -105,6 +108,7 @@ export function CommandPage({
                     action={action}
                     completed={Boolean(log?.completed) || completedMissionActionIds.includes(action.id)}
                     key={action.id}
+                    knowledgeContext={actionKnowledgeContexts[action.id]}
                     log={log}
                     onToggleMissionAction={onToggleMissionAction}
                     onUpdateExecutionLogText={onUpdateExecutionLogText}
@@ -159,12 +163,14 @@ export function CommandPage({
 function MissionActionCard({
   action,
   completed,
+  knowledgeContext,
   log,
   onToggleMissionAction,
   onUpdateExecutionLogText
 }: {
   action: CommandCenter["mission"]["actions"][number];
   completed: boolean;
+  knowledgeContext: MetricKnowledgeContext | undefined;
   log: ExecutionLog | undefined;
   onToggleMissionAction: (id: string) => void;
   onUpdateExecutionLogText: (actionId: string, field: "note" | "abnormalReason" | "evidenceText", value: string) => void;
@@ -221,6 +227,30 @@ function MissionActionCard({
                 <dt>备注</dt>
                 <dd>{action.notePrompt}</dd>
               </dl>
+      <details className="official-basis-details">
+        <summary>官方依据</summary>
+        {knowledgeContext && knowledgeContext.knowledgeCards.length > 0 ? (
+          <div className="official-basis-list">
+            {knowledgeContext.knowledgeCards.map((card) => {
+              const article = knowledgeContext.articles.find((item) => item.id === card.sourceArticleId);
+              const basisLabel = card.confidence === "weak_reference" ? "参考资料" : "官方依据";
+              return (
+                <article key={card.id}>
+                  <span>{basisLabel}</span>
+                  <strong>{card.title}</strong>
+                  <p>{article?.title ?? card.officialBasis}</p>
+                  <small>
+                    关联战场：{knowledgeContext.battleNodes.map((node) => node.title).join("、") || "待补"}
+                  </small>
+                  <small>{card.summary}</small>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="empty-copy">当前动作暂无官方知识绑定，请到流量地图中补充。</p>
+        )}
+      </details>
     </article>
   );
 }
