@@ -238,6 +238,28 @@ flowchart TB
   G2 -.-> C2
 ```
 
+## 0.4 领域模块 `DomainModule`
+
+第二批开发落地后，系统通过 `DomainModule` 读取业务域。它不是新的配置真源，而是从六张底层表派生出来的聚合视图：
+
+```text
+DomainModule =
+  Domain
+  + MetricDefinition[]
+  + DataSource[]
+  + DiagnosisRule[]
+  + ActionTemplate[]
+  + GuardrailMetric[]
+```
+
+边界原则：
+
+1. `new_lighthouse`、`sycm_core_board`、`product_growth_backend`、`factory_workbench` 都是数据源，不是领域模块。
+2. `service`、`product_growth`、`trade_funnel`、`factory_custom`、`customer_repeat`、`guardrail` 才是领域模块。
+3. `DomainModule` 不包含当前数值，不包含当天读数，也不直接派发任务。
+4. 当前数值后续进入 `MetricReading` 或导入层，再由目标、诊断和动作层读取。
+5. 当前目标只负责选择需要启用哪些领域模块，例如 `factory_bronze` 会启用 `service`、`factory_custom`、`guardrail`。
+
 ## 1. 设计原则
 
 1. 不按平台页面建模块。新灯塔、生意参谋、商品成长后台、找工厂后台都是数据源，不是一级经营模块。
