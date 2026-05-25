@@ -26,6 +26,30 @@ describe("1688 operations assistant UI", () => {
     });
   });
 
+  it("uses an operations workspace shell inspired by focused productivity dashboards", () => {
+    render(<App />);
+
+    expect(screen.getByRole("complementary", { name: "工作区导航" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "1688 运营助手" })).toBeInTheDocument();
+    expect(screen.getByText("运营情报看板")).toBeInTheDocument();
+    expect(screen.getByText("今日优先")).toBeInTheDocument();
+    expect(screen.getByText("执行闭环")).toBeInTheDocument();
+    expect(screen.getByText("数据 → 诊断 → 动作 → 复盘")).toBeInTheDocument();
+  });
+
+  it("renders reference-level dashboard details without adding new business actions", () => {
+    render(<App />);
+
+    expect(screen.getByRole("toolbar", { name: "情报控制栏" })).toBeInTheDocument();
+    expect(screen.getByText("2026/05/23")).toBeInTheDocument();
+    expect(screen.getAllByText("日").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("周").length).toBeGreaterThan(0);
+    expect(screen.getByText("月")).toBeInTheDocument();
+    expect(screen.getAllByText("METRIC")).toHaveLength(4);
+    expect(screen.getByText("BRIEFING NOTE")).toBeInTheDocument();
+    expect(screen.getByText("今日情报简报")).toBeInTheDocument();
+  });
+
   it("opens on a readable today task page with one primary goal, checklist, and collapsed context", async () => {
     const user = userEvent.setup();
     render(<App />);

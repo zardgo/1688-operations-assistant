@@ -25,7 +25,7 @@ import {
 } from "./lib/operations";
 import { parseSycmCoreBoardRows, type SheetRows, type SycmCoreBoardImport } from "./lib/sycmImport";
 import { createDemoStorage, loadAppStorage, saveAppStorage } from "./lib/storage";
-import { MainNav } from "./components/layout/MainNav";
+import { AppShell } from "./components/layout/AppShell";
 import { AnalysisPage } from "./pages/AnalysisPage";
 import { CommandPage } from "./pages/CommandPage";
 import { DataPage } from "./pages/DataPage";
@@ -460,26 +460,7 @@ export default function App() {
   }
 
   return (
-    <main className="app-shell">
-      <header className="topbar v2-topbar">
-        <div>
-          <p className="eyebrow">保温杯 / 员工闭环 / V5</p>
-          <h1>1688 运营助手</h1>
-        </div>
-        <label className="scenario-picker">
-          <span>当前目标</span>
-          <select aria-label="当前目标" value={goalId} onChange={(event) => setGoalId(event.target.value as V2GoalId)}>
-            {goalOptions.map((goal) => (
-              <option key={goal.id} value={goal.id}>
-                {goal.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </header>
-
-      <MainNav page={page} onChangePage={setPage} />
-
+    <AppShell goalId={goalId} goalOptions={goalOptions} page={page} onGoalChange={setGoalId} onPageChange={setPage}>
       {page === "command" ? (
         <CommandPage
           commandCenter={commandCenter}
@@ -551,7 +532,7 @@ export default function App() {
       ) : null}
 
       {page === "product" ? <ProductPage v3Review={v3Review} /> : null}
-    </main>
+    </AppShell>
   );
 }
 
