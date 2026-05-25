@@ -2685,15 +2685,25 @@ body {
   }
 
   .app-sidebar .mode-tabs.v2-tabs {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
-    overflow-x: auto;
-    padding-bottom: 2px;
+    overflow: visible;
+    padding-bottom: 0;
   }
 
   .app-sidebar .mode-tabs button,
   .app-sidebar .mode-tabs.v2-tabs button {
-    flex: 0 0 152px;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 30px minmax(0, 1fr);
+    min-height: 52px;
+    padding: 9px 11px;
+  }
+
+  .app-sidebar .mode-tabs button strong,
+  .app-sidebar .mode-tabs button small {
+    white-space: nowrap;
   }
 
   .sidebar-system-card {
@@ -2730,27 +2740,14 @@ body {
   }
 
   .app-sidebar .mode-tabs.v2-tabs {
-    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    overflow: visible;
   }
 
   .app-sidebar .mode-tabs button,
   .app-sidebar .mode-tabs.v2-tabs button {
-    width: 100%;
-    min-width: 0;
     grid-template-columns: 28px minmax(0, 1fr);
     min-height: 46px;
     padding: 8px 10px;
-  }
-
-  .app-sidebar .mode-tabs button strong {
-    white-space: nowrap;
-  }
-
-  .app-sidebar .mode-tabs button small {
-    white-space: nowrap;
   }
 
   .workspace-header {
