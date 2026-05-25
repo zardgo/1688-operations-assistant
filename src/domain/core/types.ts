@@ -127,6 +127,18 @@ export type DomainModule = {
   guardrails: MetricDefinition[];
 };
 
+export type MetricReading = {
+  id: string;
+  metricId: string;
+  sourceId: DataSourceId;
+  value: number;
+  period: string;
+  capturedAt: string;
+  unit: MetricUnit;
+  cadence: MetricCadence;
+  confidence: SourceConfidence;
+};
+
 export type ActiveGoalContext = {
   goalId: string;
   shopId: string;
