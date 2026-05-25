@@ -1,7 +1,8 @@
 import type { V2GoalId, V2MetricId, V4DailyFactInput } from "./operations";
+import type { MetricReading } from "../domain/core";
 
 export const APP_STORAGE_KEY = "1688-operations-assistant:v6";
-export const APP_STORAGE_SCHEMA_VERSION = 1;
+export const APP_STORAGE_SCHEMA_VERSION = 2;
 
 export type StorageAdapter = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
@@ -76,6 +77,7 @@ export type AppStorage = {
   currentGoalId: V2GoalId;
   currentPage: StoredPage;
   dailyFacts: V4DailyFactInput[];
+  metricReadings: MetricReading[];
   missionInstances: MissionInstance[];
   executionLogs: ExecutionLog[];
   backtestResults: BacktestResult[];
@@ -124,6 +126,7 @@ export function createDemoStorage(overrides: Partial<AppStorage> = {}): AppStora
         replenishmentBuyerCount: 0
       }
     ],
+    metricReadings: [],
     missionInstances: [],
     executionLogs: [],
     backtestResults: [],
@@ -146,12 +149,13 @@ export function loadAppStorage(storage: StorageAdapter = window.localStorage): L
     return { storage: createDemoStorage(), recovered: true, error: parsed.error };
   }
 
-  const validation = validateAppStorage(parsed.storage);
+  const migrated = migrateAppStorage(parsed.storage);
+  const validation = validateAppStorage(migrated);
   if (!validation.valid) {
     return { storage: createDemoStorage(), recovered: true, error: validation.errors.join(" ") };
   }
 
-  return { storage: parsed.storage, recovered: false, error: null };
+  return { storage: migrated, recovered: false, error: null };
 }
 
 export function saveAppStorage(storage: StorageAdapter = window.localStorage, appStorage: AppStorage) {
@@ -173,13 +177,14 @@ export function importAppStorage(storage: StorageAdapter, raw: string): ImportSt
     return { ok: false, error: parsed.error, storage: current };
   }
 
-  const validation = validateAppStorage(parsed.storage);
+  const migrated = migrateAppStorage(parsed.storage);
+  const validation = validateAppStorage(migrated);
   if (!validation.valid) {
     return { ok: false, error: validation.errors.join(" "), storage: current };
   }
 
-  saveAppStorage(storage, parsed.storage);
-  return { ok: true, storage: parsed.storage };
+  saveAppStorage(storage, migrated);
+  return { ok: true, storage: migrated };
 }
 
 export function resetDemoStorage(storage: StorageAdapter = window.localStorage): AppStorage {
@@ -201,6 +206,7 @@ export function validateAppStorage(candidate: unknown): StorageValidationResult 
   }
 
   if (!Array.isArray(value.dailyFacts)) errors.push("dailyFacts 必须是数组。");
+  if (!Array.isArray(value.metricReadings)) errors.push("metricReadings 必须是数组。");
   if (!Array.isArray(value.missionInstances)) errors.push("missionInstances 必须是数组。");
   if (!Array.isArray(value.executionLogs)) errors.push("executionLogs 必须是数组。");
   if (!Array.isArray(value.backtestResults)) errors.push("backtestResults 必须是数组。");
@@ -241,6 +247,28 @@ export function validateAppStorage(candidate: unknown): StorageValidationResult 
   }
 
   return { valid: errors.length === 0, errors };
+}
+
+function migrateAppStorage(candidate: AppStorage | (Partial<AppStorage> & { schemaVersion?: number })): AppStorage {
+  if (candidate.schemaVersion === APP_STORAGE_SCHEMA_VERSION) return candidate as AppStorage;
+
+  if (candidate.schemaVersion === 1) {
+    const legacy = candidate as Partial<AppStorage>;
+    return {
+      ...legacy,
+      schemaVersion: APP_STORAGE_SCHEMA_VERSION,
+      metricReadings: Array.isArray(legacy.metricReadings) ? legacy.metricReadings : []
+    } as AppStorage;
+  }
+
+  if (!Array.isArray(candidate.metricReadings)) {
+    return {
+      ...(candidate as AppStorage),
+      metricReadings: []
+    };
+  }
+
+  return candidate as AppStorage;
 }
 
 function parseStorage(raw: string): { ok: true; storage: AppStorage } | { ok: false; error: string } {

@@ -44,13 +44,44 @@ describe("AppStorage repository", () => {
 
   it("round-trips valid storage through export and import", () => {
     const storage = createMemoryStorage();
-    const appStorage = createDemoStorage();
+    const appStorage = createDemoStorage({
+      metricReadings: [
+        {
+          id: "total_exposure:sycm_core_board:2026-05-23",
+          metricId: "total_exposure",
+          sourceId: "sycm_core_board",
+          value: 2059,
+          period: "2026-05-23",
+          capturedAt: "2026-05-23T12:00:00.000Z",
+          unit: "count",
+          cadence: "daily",
+          confidence: "high"
+        }
+      ]
+    });
     const exported = exportAppStorage(appStorage);
 
     const result = importAppStorage(storage, exported);
 
     expect(result.ok).toBe(true);
     expect(loadAppStorage(storage).storage).toEqual(appStorage);
+  });
+
+  it("migrates v1 storage by adding metric readings", () => {
+    const legacy = createDemoStorage();
+    const storage = createMemoryStorage({
+      [APP_STORAGE_KEY]: JSON.stringify({
+        ...legacy,
+        schemaVersion: 1,
+        metricReadings: undefined
+      })
+    });
+
+    const result = loadAppStorage(storage);
+
+    expect(result.recovered).toBe(false);
+    expect(result.storage.schemaVersion).toBe(APP_STORAGE_SCHEMA_VERSION);
+    expect(result.storage.metricReadings).toEqual([]);
   });
 
   it("rejects invalid imports and keeps the previous valid storage", () => {
