@@ -44,6 +44,7 @@ export function createMissionInstance(input: CreateMissionInput): MissionInstanc
     generatedFrom: {
       diagnosisId: input.bottleneckId
     },
+    actions: [],
     backtestPlan: {
       baselineDate: input.date,
       baselineValue: input.baselineValue ?? null,
@@ -69,6 +70,7 @@ export function completeMission(
   input: CompleteMissionInput
 ): { mission: MissionInstance; executionLog: ExecutionLog } {
   const updatedMission: MissionInstance = { ...mission, status: "completed" };
+  const now = input.completedAt;
   return {
     mission: updatedMission,
     executionLog: {
@@ -78,7 +80,12 @@ export function completeMission(
       completedAt: input.completedAt,
       operatorName: input.operatorName,
       note: input.note,
-      abnormalReason: ""
+      abnormalReason: "",
+      evidenceText: "",
+      evidenceUrls: [],
+      quality: "unknown",
+      createdAt: now,
+      updatedAt: now
     }
   };
 }
@@ -87,6 +94,7 @@ export function skipMission(
   mission: MissionInstance,
   abnormalReason: string
 ): { mission: MissionInstance; executionLog: ExecutionLog } {
+  const now = new Date().toISOString();
   return {
     mission: { ...mission, status: "skipped" },
     executionLog: {
@@ -94,7 +102,12 @@ export function skipMission(
       missionId: mission.id,
       completed: false,
       abnormalReason,
-      note: ""
+      note: "",
+      evidenceText: "",
+      evidenceUrls: [],
+      quality: "unknown",
+      createdAt: now,
+      updatedAt: now
     }
   };
 }

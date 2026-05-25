@@ -25,7 +25,16 @@ import {
   type V5ChecklistBacktestResult
 } from "./lib/operations";
 import { parseSycmCoreBoardRows, type SheetRows, type SycmCoreBoardImport } from "./lib/sycmImport";
-import { createDemoStorage, loadAppStorage, saveAppStorage } from "./lib/storage";
+import { buildDataQualityReport, buildDiagnosisMeta, type DataSourceType } from "./lib/dataQuality";
+import {
+  createDemoStorage,
+  loadAppStorage,
+  saveAppStorage,
+  type BacktestResult,
+  type ExecutionLog,
+  type MissionInstance,
+  type WorkspaceMode
+} from "./lib/storage";
 import { AppShell } from "./components/layout/AppShell";
 import { AnalysisPage } from "./pages/AnalysisPage";
 import { CommandPage } from "./pages/CommandPage";
@@ -307,10 +316,19 @@ export default function App() {
   const [initialStorage] = useState(() => loadAppStorage().storage);
   const [page, setPage] = useState<Page>(initialStorage.currentPage);
   const [goalId, setGoalId] = useState<V2GoalId>(initialStorage.currentGoalId);
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(initialStorage.workspaceMode);
   const [values, setValues] = useState(initialValues);
   const [dailyFacts, setDailyFacts] = useState<V4DailyFactInput>(initialStorage.dailyFacts[0] ?? initialDailyFacts);
+  const [dataSourceType, setDataSourceType] = useState<DataSourceType>(initialStorage.dataSourceType);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(initialStorage.lastUpdatedAt);
+  const [importedFields, setImportedFields] = useState<string[]>(initialStorage.importedFields);
+  const [fallbackFields, setFallbackFields] = useState<string[]>(initialStorage.fallbackFields);
+  const [missingFields, setMissingFields] = useState<string[]>(initialStorage.missingFields);
   const [backtestAfter, setBacktestAfter] = useState("62");
   const [backtestResult, setBacktestResult] = useState<V2BacktestResult | null>(null);
+  const [missionInstances, setMissionInstances] = useState<MissionInstance[]>(initialStorage.missionInstances);
+  const [executionLogs, setExecutionLogs] = useState<ExecutionLog[]>(initialStorage.executionLogs);
+  const [storedBacktestResults, setStoredBacktestResults] = useState<BacktestResult[]>(initialStorage.backtestResults);
   const [checkedChecklistIds, setCheckedChecklistIds] = useState<string[]>(initialStorage.checkedChecklistIds);
   const [completedMissionActionIds, setCompletedMissionActionIds] = useState<string[]>(
     initialStorage.completedMissionActionIds
@@ -336,12 +354,36 @@ export default function App() {
     () => getActiveRuleVersionsForGoal(goalId, ruleVersions),
     [goalId, ruleVersions]
   );
+  const dataQualityReport = useMemo(
+    () =>
+      buildDataQualityReport({
+        sourceType: dataSourceType,
+        importedFields,
+        fallbackFields,
+        missingFields,
+        lastUpdatedAt
+      }),
+    [dataSourceType, fallbackFields, importedFields, lastUpdatedAt, missingFields]
+  );
+  const diagnosisMeta = useMemo(
+    () =>
+      buildDiagnosisMeta({
+        dataQuality: dataQualityReport,
+        activeRuleCount: activeRules.length,
+        hasGap: dashboard.gaps.length > 0
+      }),
+    [activeRules.length, dashboard.gaps.length, dataQualityReport]
+  );
   const commandCenter = useMemo(
     () => buildV8CommandCenter(dashboard, actionPlan, activeRules),
     [dashboard, actionPlan, activeRules]
   );
+  const activeMission = useMemo(
+    () => buildMissionInstance(commandCenter, goalId, dailyFacts.date),
+    [commandCenter, dailyFacts.date, goalId]
+  );
   const missionCompletedCount = commandCenter.mission.actions.filter((action) =>
-    completedMissionActionIds.includes(action.id)
+    executionLogs.some((log) => log.missionId === activeMission.id && log.id.endsWith(`:${action.id}`) && log.completed)
   ).length;
   const v3Review = useMemo(
     () =>
@@ -374,15 +416,39 @@ export default function App() {
   );
 
   useEffect(() => {
+    setMissionInstances((current) =>
+      current.some((mission) => mission.id === activeMission.id) ? current : [activeMission, ...current]
+    );
+  }, [activeMission]);
+
+  useEffect(() => {
+    if (backtestResult || !firstAction) return;
+    const completedLogIds = new Set(executionLogs.filter((log) => log.completed).map((log) => log.id));
+    const storedResult = storedBacktestResults.find((result) => completedLogIds.has(result.executionLogId));
+    if (!storedResult || storedResult.afterValue === null) return;
+    const beforeValue = storedResult.beforeValue ?? values[firstAction.targetMetricId];
+    setBacktestResult(backtestV2Action(firstAction, beforeValue, storedResult.afterValue));
+  }, [backtestResult, executionLogs, firstAction, storedBacktestResults, values]);
+
+  useEffect(() => {
     saveAppStorage(window.localStorage, {
       ...createDemoStorage(),
       currentGoalId: goalId,
       currentPage: page,
+      workspaceMode,
+      dataSourceType,
+      lastUpdatedAt,
+      importedFields,
+      fallbackFields,
+      missingFields,
       dailyFacts: [dailyFacts],
+      missionInstances,
+      executionLogs,
+      backtestResults: storedBacktestResults,
       checkedChecklistIds,
       completedMissionActionIds
     });
-  }, [checkedChecklistIds, completedMissionActionIds, dailyFacts, goalId, page]);
+  }, [checkedChecklistIds, completedMissionActionIds, dailyFacts, dataSourceType, executionLogs, fallbackFields, goalId, importedFields, lastUpdatedAt, missingFields, missionInstances, page, storedBacktestResults, workspaceMode]);
 
   function updateMetric(metric: EditableMetric, rawValue: string) {
     const numericValue = Number(rawValue);
@@ -390,14 +456,32 @@ export default function App() {
       ...current,
       [metric.id]: metric.unit === "%" ? numericValue / 100 : numericValue
     }));
+    setDataSourceType((current) => (current === "sycm_import" ? "mixed" : "manual"));
+    setLastUpdatedAt(new Date().toISOString());
     setBacktestResult(null);
   }
 
   function runBacktest(action: V2Action) {
+    const executionLog = executionLogs.find((log) => log.completed);
+    if (!executionLog) return;
     const metric = editableMetrics.find((item) => item.id === action.targetMetricId);
     const afterValue = Number(backtestAfter);
     const normalizedAfter = metric?.unit === "%" ? afterValue / 100 : afterValue;
     setBacktestResult(backtestV2Action(action, values[action.targetMetricId], normalizedAfter));
+    const result: BacktestResult = {
+      id: `${executionLog.id}:backtest`,
+      executionLogId: executionLog.id,
+      missionId: executionLog.missionId,
+      result:
+        normalizedAfter > values[action.targetMetricId]
+          ? "effective"
+          : normalizedAfter === values[action.targetMetricId]
+            ? "watch"
+            : "ineffective",
+      beforeValue: values[action.targetMetricId],
+      afterValue: normalizedAfter
+    };
+    setStoredBacktestResults((current) => [result, ...current.filter((item) => item.id !== result.id)]);
   }
 
   function updateDailyFact(field: DailyField, rawValue: string) {
@@ -406,6 +490,8 @@ export default function App() {
       ...current,
       [field.id]: field.unit === "%" ? numericValue / 100 : numericValue
     }));
+    setDataSourceType((current) => (current === "sycm_import" ? "mixed" : "manual"));
+    setLastUpdatedAt(new Date().toISOString());
   }
 
   async function importSycmCoreBoard(file: File) {
@@ -420,6 +506,11 @@ export default function App() {
       const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: "" }) as SheetRows;
       const result = parseSycmCoreBoardRows(rows, dailyFacts);
       setDailyFacts(result.fact);
+      setDataSourceType("sycm_import");
+      setImportedFields(["totalExposure", "adExposure", "visitors", "payments", "paymentAmount", "adSpend"]);
+      setFallbackFields(result.missingFields);
+      setMissingFields(result.missingFields);
+      setLastUpdatedAt(new Date().toISOString());
       setSycmImportStatus({ fileName: file.name, result, error: null });
       setPage("data");
     } catch (error) {
@@ -438,9 +529,14 @@ export default function App() {
   }
 
   function toggleMissionAction(id: string) {
+    setExecutionLogs((current) => upsertExecutionLog(current, activeMission.id, id, { toggleCompleted: true }));
     setCompletedMissionActionIds((current) =>
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
     );
+  }
+
+  function updateExecutionLogText(actionId: string, field: "note" | "abnormalReason" | "evidenceText", value: string) {
+    setExecutionLogs((current) => upsertExecutionLog(current, activeMission.id, actionId, { [field]: value }));
   }
 
   function runV5Backtest() {
@@ -471,18 +567,32 @@ export default function App() {
   }
 
   return (
-    <AppShell goalId={goalId} goalOptions={goalOptions} page={page} onGoalChange={setGoalId} onPageChange={setPage}>
+    <AppShell
+      dataQualityReport={dataQualityReport}
+      goalId={goalId}
+      goalOptions={goalOptions}
+      lastUpdatedAt={lastUpdatedAt}
+      page={page}
+      ruleStatus={commandCenter.ruleBasis.label}
+      workspaceMode={workspaceMode}
+      onGoalChange={setGoalId}
+      onModeChange={setWorkspaceMode}
+      onPageChange={setPage}
+    >
       {page === "command" ? (
         <CommandPage
           commandCenter={commandCenter}
+          dataQualityReport={dataQualityReport}
+          diagnosisMeta={diagnosisMeta}
           completedMissionActionIds={completedMissionActionIds}
+          executionLogs={executionLogs.filter((log) => log.missionId === activeMission.id)}
           missionCompletedCount={missionCompletedCount}
-          responseRateBenchmark={responseRateBenchmark}
           todayGapLabel={todayGapLabel}
           todayHeroReason={todayHeroReason}
           todayPrimaryMetric={todayPrimaryMetric}
           onOpenData={() => setPage("data")}
           onToggleMissionAction={toggleMissionAction}
+          onUpdateExecutionLogText={updateExecutionLogText}
         />
       ) : null}
 
@@ -492,8 +602,11 @@ export default function App() {
           dailyFields={dailyFields}
           editableMetrics={editableMetrics}
           sycmImportStatus={sycmImportStatus}
+          dataQualityReport={dataQualityReport}
           v4Review={v4Review}
           values={values}
+          onOpenAnalysis={() => setPage("analysis")}
+          onOpenCommand={() => setPage("command")}
           onImportSycmCoreBoard={(file) => void importSycmCoreBoard(file)}
           onUpdateDailyFact={updateDailyFact}
           onUpdateMetric={updateMetric}
@@ -505,8 +618,11 @@ export default function App() {
           actionPlan={actionPlan}
           checkedChecklistIds={checkedChecklistIds}
           commandCenter={commandCenter}
+          dataQualityReport={dataQualityReport}
           dashboard={dashboard}
+          diagnosisMeta={diagnosisMeta}
           firstChecklistAction={firstChecklistAction}
+          responseRateBenchmark={responseRateBenchmark}
           v3Review={v3Review}
           v5BacktestAfter={v5BacktestAfter}
           v5BacktestResult={v5BacktestResult}
@@ -536,6 +652,7 @@ export default function App() {
         <ReviewPage
           backtestAfter={backtestAfter}
           backtestResult={backtestResult}
+          executionLogs={executionLogs}
           firstAction={firstAction}
           v3Review={v3Review}
           onBacktestAfterChange={setBacktestAfter}
@@ -567,4 +684,64 @@ function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
 
 function goalLabel(goalId: V2GoalId): string {
   return goalOptions.find((goal) => goal.id === goalId)?.label ?? goalId;
+}
+
+function buildMissionInstance(commandCenter: ReturnType<typeof buildV8CommandCenter>, goalId: V2GoalId, date: string): MissionInstance {
+  const targetMetricId = commandCenter.tomorrowCheck.metricId ?? commandCenter.todayActions[0]?.targetMetricId ?? "weekly_sop_count";
+  return {
+    id: `${date}:${goalId}:${commandCenter.primaryBlocker?.metricId ?? "sop_review"}`,
+    date,
+    goalId,
+    bottleneckId: commandCenter.primaryBlocker?.metricId ?? "sop_review",
+    source: "system",
+    status: "pending",
+    title: commandCenter.mission.goal.title,
+    targetMetricId,
+    verifyDate: date,
+    generatedFrom: {},
+    actions: commandCenter.mission.actions.map((action) => ({
+      actionId: action.id,
+      title: action.title,
+      targetMetricId: commandCenter.todayActions.find((item) => item.id === action.id)?.targetMetricId ?? targetMetricId,
+      owner: action.owner,
+      dueTime: action.dueTime
+    })),
+    backtestPlan: {
+      baselineDate: date,
+      baselineValue: commandCenter.primaryBlocker?.current ?? null,
+      expectedDirection: "increase",
+      targetMetricId,
+      verifyDate: date,
+      successRule: "improved"
+    }
+  };
+}
+
+function upsertExecutionLog(
+  logs: ExecutionLog[],
+  missionId: string,
+  actionId: string,
+  patch: Partial<ExecutionLog> & { toggleCompleted?: boolean }
+): ExecutionLog[] {
+  const id = `${missionId}:${actionId}`;
+  const now = new Date().toISOString();
+  const existing = logs.find((log) => log.id === id);
+  const nextCompleted = patch.toggleCompleted ? !existing?.completed : existing?.completed ?? false;
+  const nextLog: ExecutionLog = {
+    id,
+    missionId,
+    completed: nextCompleted,
+    completedAt: nextCompleted ? existing?.completedAt ?? now : undefined,
+    operatorName: existing?.operatorName ?? "员工",
+    note: existing?.note ?? "",
+    abnormalReason: existing?.abnormalReason ?? "",
+    evidenceText: existing?.evidenceText ?? "",
+    evidenceUrls: existing?.evidenceUrls ?? [],
+    quality: existing?.quality ?? "unknown",
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+    ...patch
+  };
+  delete (nextLog as ExecutionLog & { toggleCompleted?: boolean }).toggleCompleted;
+  return existing ? logs.map((log) => (log.id === id ? nextLog : log)) : [nextLog, ...logs];
 }

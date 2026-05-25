@@ -1,7 +1,9 @@
 import { Card } from "../components/ui/Card";
 import { MetricCard } from "../components/ui/MetricCard";
 import { StatusBadge } from "../components/ui/StatusBadge";
-import type { buildV8CommandCenter, ResponseRateBenchmark } from "../lib/operations";
+import type { buildV8CommandCenter } from "../lib/operations";
+import type { DataQualityReport, DiagnosisMeta } from "../lib/dataQuality";
+import type { ExecutionLog } from "../lib/storage";
 
 type CommandCenter = ReturnType<typeof buildV8CommandCenter>;
 
@@ -14,9 +16,12 @@ type CommandPageProps = {
   todayGapLabel: string;
   todayHeroReason: string;
   missionCompletedCount: number;
-  responseRateBenchmark: ResponseRateBenchmark;
+  dataQualityReport: DataQualityReport;
+  diagnosisMeta: DiagnosisMeta;
   completedMissionActionIds: string[];
+  executionLogs: ExecutionLog[];
   onToggleMissionAction: (id: string) => void;
+  onUpdateExecutionLogText: (actionId: string, field: "note" | "abnormalReason" | "evidenceText", value: string) => void;
   onOpenData: () => void;
 };
 
@@ -26,11 +31,17 @@ export function CommandPage({
   todayGapLabel,
   todayHeroReason,
   missionCompletedCount,
-  responseRateBenchmark,
+  dataQualityReport,
+  diagnosisMeta,
   completedMissionActionIds,
+  executionLogs,
   onToggleMissionAction,
+  onUpdateExecutionLogText,
   onOpenData
 }: CommandPageProps) {
+  const shouldVerifyData = diagnosisMeta.confidence === "low" || diagnosisMeta.confidence === "insufficient_data";
+  const canShowMission = diagnosisMeta.confidence !== "insufficient_data" && dataQualityReport.canGenerateMission;
+
   return (
     <section className="today-page">
       <section className="today-hero">
@@ -43,11 +54,17 @@ export function CommandPage({
           <p className="hero-reason">原因：{todayHeroReason}</p>
         </div>
         <div className="today-hero-action">
-          <StatusBadge tone={commandCenter.primaryBlocker ? "danger" : "success"}>
-            {commandCenter.primaryBlocker ? "必须处理" : "已达标"}
+          <StatusBadge tone={shouldVerifyData ? "warning" : commandCenter.primaryBlocker ? "danger" : "success"}>
+            {shouldVerifyData ? "建议先核实数据" : commandCenter.primaryBlocker ? "必须处理" : "已达标"}
+          </StatusBadge>
+          <StatusBadge tone={dataQualityReport.level === "high" ? "success" : dataQualityReport.level === "medium" ? "warning" : "danger"}>
+            数据可信度：{formatDataQualityLevel(dataQualityReport.level)}
+          </StatusBadge>
+          <StatusBadge tone={diagnosisMeta.confidence === "high" ? "success" : diagnosisMeta.confidence === "medium" ? "warning" : "danger"}>
+            置信度：{formatDiagnosisConfidence(diagnosisMeta.confidence)}
           </StatusBadge>
           <button className="primary-action" type="button" onClick={onOpenData}>
-            录入今日数据
+            {diagnosisMeta.confidence === "insufficient_data" ? "先补齐数据" : "录入今日数据"}
           </button>
         </div>
       </section>
@@ -73,43 +90,38 @@ export function CommandPage({
         />
       </section>
 
-      <ResponseRateBenchmarkCard benchmark={responseRateBenchmark} />
-
       <Card title="今日 checklist" eyebrow="只做最少必要动作" tone="action">
-        <p className="command-instruction">
-          <strong>今天只处理 {commandCenter.todayActions.length} 件事</strong>
-          {commandCenter.employeeInstruction.replace(`今天只处理 ${commandCenter.todayActions.length} 件事`, "")}
-        </p>
-        <div className="task-list command-task-list">
-          {commandCenter.mission.actions.map((action) => (
-            <article className={`task-card mission-action-card ${action.priority.toLowerCase()}`} key={action.id}>
-              <div className="task-head">
-                <span>{action.priority}</span>
-                <strong>{action.title}</strong>
-              </div>
-              <div className="mission-action-meta">
-                <small>负责人：{action.owner}</small>
-                <small>截止：{action.dueTime}</small>
-                <small>指标：{action.targetMetricLabel}</small>
-              </div>
-              <p>{action.method}</p>
-              <label className="mission-check">
-                <input
-                  checked={completedMissionActionIds.includes(action.id)}
-                  type="checkbox"
-                  onChange={() => onToggleMissionAction(action.id)}
-                />
-                <span>{action.checkLabel}</span>
-              </label>
-              <dl>
-                <dt>明日验证</dt>
-                <dd>{action.expectedImpact}</dd>
-                <dt>备注</dt>
-                <dd>{action.notePrompt}</dd>
-              </dl>
-            </article>
-          ))}
-        </div>
+        {canShowMission ? (
+          <>
+            <p className="command-instruction">
+              <strong>今天只处理 {commandCenter.todayActions.length} 件事</strong>
+              {commandCenter.employeeInstruction.replace(`今天只处理 ${commandCenter.todayActions.length} 件事`, "")}
+            </p>
+            <div className="task-list command-task-list">
+              {commandCenter.mission.actions.map((action) => {
+                const log = executionLogs.find((item) => item.id.endsWith(`:${action.id}`));
+                return (
+                  <MissionActionCard
+                    action={action}
+                    completed={Boolean(log?.completed) || completedMissionActionIds.includes(action.id)}
+                    key={action.id}
+                    log={log}
+                    onToggleMissionAction={onToggleMissionAction}
+                    onUpdateExecutionLogText={onUpdateExecutionLogText}
+                  />
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <div className="empty-state-card">
+            <strong>请先补齐数据</strong>
+            <p>{diagnosisMeta.explanation}</p>
+            <button className="primary-action" type="button" onClick={onOpenData}>
+              先补齐数据
+            </button>
+          </div>
+        )}
       </Card>
 
       <Card title="明日验证" eyebrow="做完之后看这个" tone="success">
@@ -128,7 +140,7 @@ export function CommandPage({
           <strong>
             {commandCenter.ruleBasis.status === "active" ? commandCenter.ruleBasis.label : "规则来源状态待维护"}
           </strong>
-          <p>当前规则用于解释目标和动作，完整来源状态请到规则维护页查看。</p>
+          <p>{commandCenter.ruleBasis.detail}</p>
         </div>
       </details>
 
@@ -144,30 +156,85 @@ export function CommandPage({
   );
 }
 
-function ResponseRateBenchmarkCard({ benchmark }: { benchmark: ResponseRateBenchmark }) {
-  const platform = benchmark.catchups.find((catchup) => catchup.id === "platform");
-  const peerAverage = benchmark.catchups.find((catchup) => catchup.id === "average");
-  const peerExcellent = benchmark.catchups.find((catchup) => catchup.id === "excellent");
-
+function MissionActionCard({
+  action,
+  completed,
+  log,
+  onToggleMissionAction,
+  onUpdateExecutionLogText
+}: {
+  action: CommandCenter["mission"]["actions"][number];
+  completed: boolean;
+  log: ExecutionLog | undefined;
+  onToggleMissionAction: (id: string) => void;
+  onUpdateExecutionLogText: (actionId: string, field: "note" | "abnormalReason" | "evidenceText", value: string) => void;
+}) {
   return (
-    <Card title="同行基准" eyebrow="新灯塔服务体验" tone="warning">
-      <div className="response-benchmark-card">
-        <div className="benchmark-headline">
-          <div>
-            <span>{benchmark.metricLabel}</span>
-            <strong>
-              {benchmark.currentLabel} <em>{benchmark.levelLabel}</em>
-            </strong>
-            <p>{benchmark.sample.label}</p>
-          </div>
-          <div className="benchmark-peer-grid" aria-label="同行基准">
-            <span>当前 {benchmark.currentLabel}</span>
-            {platform ? <span>{platform.label} {platform.targetLabel}</span> : null}
-            {peerAverage ? <span>{peerAverage.label} {peerAverage.targetLabel}</span> : null}
-            {peerExcellent ? <span>{peerExcellent.label} {peerExcellent.targetLabel}</span> : null}
-          </div>
-        </div>
+    <article className={`task-card mission-action-card ${action.priority.toLowerCase()}`}>
+              <div className="task-head">
+                <span>{action.priority}</span>
+                <strong>{action.title}</strong>
+              </div>
+              <div className="mission-action-meta">
+                <small>负责人：{action.owner}</small>
+                <small>截止：{action.dueTime}</small>
+                <small>指标：{action.targetMetricLabel}</small>
+              </div>
+              <p>{action.method}</p>
+      <div className="execution-fields">
+        <label>
+          <span>备注</span>
+          <textarea
+            aria-label={`${action.title} 备注`}
+            value={log?.note ?? ""}
+            onChange={(event) => onUpdateExecutionLogText(action.id, "note", event.target.value)}
+          />
+        </label>
+        <label>
+          <span>异常原因</span>
+          <textarea
+            aria-label={`${action.title} 异常原因`}
+            value={log?.abnormalReason ?? ""}
+            onChange={(event) => onUpdateExecutionLogText(action.id, "abnormalReason", event.target.value)}
+          />
+        </label>
+        <label>
+          <span>证据说明</span>
+          <textarea
+            aria-label={`${action.title} 证据说明`}
+            value={log?.evidenceText ?? ""}
+            onChange={(event) => onUpdateExecutionLogText(action.id, "evidenceText", event.target.value)}
+          />
+        </label>
       </div>
-    </Card>
+      <button
+        aria-label={action.checkLabel}
+        className={completed ? "secondary-action" : "primary-action"}
+        type="button"
+        onClick={() => onToggleMissionAction(action.id)}
+      >
+        {completed ? "取消完成" : action.checkLabel}
+      </button>
+              <dl>
+                <dt>明日验证</dt>
+                <dd>{action.expectedImpact}</dd>
+                <dt>备注</dt>
+                <dd>{action.notePrompt}</dd>
+              </dl>
+    </article>
   );
+}
+
+function formatDataQualityLevel(level: DataQualityReport["level"]): string {
+  if (level === "high") return "高";
+  if (level === "medium") return "中";
+  if (level === "low") return "低";
+  return "不足";
+}
+
+function formatDiagnosisConfidence(confidence: DiagnosisMeta["confidence"]): string {
+  if (confidence === "high") return "高";
+  if (confidence === "medium") return "中";
+  if (confidence === "low") return "低";
+  return "数据不足";
 }

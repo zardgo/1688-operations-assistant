@@ -52,8 +52,8 @@ export function RulesPage({
             {ruleVersions.map((rule) => (
               <article className="rule-card" key={rule.id}>
                 <div className="rule-card-head">
-                  <span className={rule.status === "active" ? "confirmed" : "unconfirmed"}>
-                    {rule.status === "active" ? "已采用" : "来源待补"}
+                  <span className={rule.status === "active" ? "confirmed" : rule.status}>
+                    {formatRuleStatusBadge(rule)}
                   </span>
                   <strong>{rule.name}</strong>
                 </div>
@@ -64,14 +64,21 @@ export function RulesPage({
                   <dd>{rule.scope}</dd>
                   <dt>官方链接</dt>
                   <dd>
-                    <a href={rule.sourceUrl} rel="noreferrer" target="_blank">
-                      打开规则
-                    </a>
+                    {isValidSourceUrl(rule.sourceUrl) ? (
+                      <a href={rule.sourceUrl} rel="noreferrer" target="_blank">
+                        打开规则
+                      </a>
+                    ) : (
+                      <span className="rule-warning">来源待补</span>
+                    )}
                   </dd>
                   <dt>规则状态</dt>
                   <dd>{formatRuleStatus(rule.status)}</dd>
                   <dt>来源可信度</dt>
-                  <dd>{formatSourceConfidence(rule.sourceConfidence)}</dd>
+                  <dd>
+                    {formatSourceConfidence(rule.sourceConfidence)}
+                    {rule.sourceConfidence === "low" ? <span className="rule-warning"> 低可信，不能当官方确定</span> : null}
+                  </dd>
                   <dt>最近维护</dt>
                   <dd>{rule.lastReviewedAt ?? "待补"}</dd>
                   <dt>维护说明</dt>
@@ -104,8 +111,8 @@ export function RulesPage({
             <strong>当前采用规则 {activeRules.length} 条</strong>
             <p>
               {activeRules.length === 0
-                ? "当前目标还没有采用中的规则版本，仍可按来源待补规则生成行动建议。"
-                : "已采用规则会进入目标差距和 checklist，后台口径仍可覆盖。"}
+                ? "当前目标还没有采用中的规则版本；来源待补和草案规则只能弱提示，不能表现为官方确定。"
+                : "已采用规则可进入目标差距和 checklist；来源待补规则只做维护提示。"}
             </p>
           </div>
           <div className="rule-form">
@@ -147,7 +154,7 @@ export function RulesPage({
           </div>
           <div className="cadence-list">
             <p><strong>当前目标</strong>{dashboard.goalLabel}</p>
-            <p><strong>使用原则</strong>不再用来源核验卡住员工端；来源待补也可以生成建议。</p>
+            <p><strong>使用原则</strong>active 才能用于派单；source_found 只做弱提示，draft 不进入自动派单。</p>
             <p><strong>更新动作</strong>官方规则变更后，新增规则版本，标记来源可信度，再按后台口径采用。</p>
           </div>
         </aside>
@@ -158,8 +165,8 @@ export function RulesPage({
 
 function formatRuleStatus(status: "draft" | "source_found" | "active" | "deprecated"): string {
   if (status === "active") return "生效";
-  if (status === "source_found") return "来源待补";
-  if (status === "deprecated") return "已过期";
+  if (status === "source_found") return "有来源待确认";
+  if (status === "deprecated") return "已废弃";
   return "草案";
 }
 
@@ -167,4 +174,14 @@ function formatSourceConfidence(confidence: "low" | "medium" | "high"): string {
   if (confidence === "high") return "高";
   if (confidence === "medium") return "中";
   return "低";
+}
+
+function formatRuleStatusBadge(rule: RuleVersion): string {
+  if (!isValidSourceUrl(rule.sourceUrl)) return "来源待补";
+  if (rule.status === "active") return "当前采用";
+  return formatRuleStatus(rule.status);
+}
+
+function isValidSourceUrl(sourceUrl: string): boolean {
+  return /^https?:\/\/.+/.test(sourceUrl) && !sourceUrl.includes("example.com");
 }

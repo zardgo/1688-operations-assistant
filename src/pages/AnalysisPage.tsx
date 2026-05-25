@@ -1,21 +1,27 @@
 import { Activity, BarChart3, BookOpenCheck, Brain, CheckCircle2, ClipboardList, RotateCcw, ShieldCheck, Target } from "lucide-react";
 import { PageHeader } from "../components/layout/PageHeader";
 import { MetricCard } from "../components/ui/MetricCard";
+import { StatusBadge } from "../components/ui/StatusBadge";
+import type { DataQualityReport, DiagnosisMeta } from "../lib/dataQuality";
 import type {
   V5ChecklistBacktestResult,
   buildV2ActionPlan,
   buildV2GoalDashboard,
   buildV3OperatingReview,
   buildV5OperatingLoop,
-  buildV8CommandCenter
+  buildV8CommandCenter,
+  buildResponseRateBenchmark
 } from "../lib/operations";
 
 type AnalysisPageProps = {
   actionPlan: ReturnType<typeof buildV2ActionPlan>;
   checkedChecklistIds: string[];
   commandCenter: ReturnType<typeof buildV8CommandCenter>;
+  dataQualityReport: DataQualityReport;
   dashboard: ReturnType<typeof buildV2GoalDashboard>;
+  diagnosisMeta: DiagnosisMeta;
   firstChecklistAction: ReturnType<typeof buildV5OperatingLoop>["checklist"][number] | null;
+  responseRateBenchmark: ReturnType<typeof buildResponseRateBenchmark>;
   v3Review: ReturnType<typeof buildV3OperatingReview>;
   v5BacktestAfter: string;
   v5BacktestResult: V5ChecklistBacktestResult | null;
@@ -29,8 +35,11 @@ export function AnalysisPage({
   actionPlan,
   checkedChecklistIds,
   commandCenter,
+  dataQualityReport,
   dashboard,
+  diagnosisMeta,
   firstChecklistAction,
+  responseRateBenchmark,
   v3Review,
   v5BacktestAfter,
   v5BacktestResult,
@@ -63,6 +72,46 @@ export function AnalysisPage({
           }
           tone="action"
         />
+      </section>
+
+      <section className="page-grid diagnosis-grid">
+        <div className="panel task-panel">
+          <div className="section-title">
+            <Brain aria-hidden="true" />
+            <h2>诊断解释</h2>
+          </div>
+          <div className="diagnosis-explain-card">
+            <div className="diagnosis-badge-row">
+              <StatusBadge tone={diagnosisMeta.confidence === "high" ? "success" : diagnosisMeta.confidence === "medium" ? "warning" : "danger"}>
+                置信度：{formatDiagnosisConfidence(diagnosisMeta.confidence)}
+              </StatusBadge>
+              <StatusBadge tone={dataQualityReport.level === "high" ? "success" : dataQualityReport.level === "medium" ? "warning" : "danger"}>
+                数据：{dataQualityReport.label}
+              </StatusBadge>
+            </div>
+            <strong>{commandCenter.primaryBlocker?.metricLabel ?? "当前没有明确主卡点"}</strong>
+            <p>{diagnosisMeta.explanation}</p>
+            <dl>
+              <dt>判断依据</dt>
+              <dd>{commandCenter.primaryBlocker?.whyItMatters ?? "核心指标已过线，优先复盘已有动作。"}</dd>
+              <dt>可能误判原因</dt>
+              <dd>{formatReasonCodes(diagnosisMeta.reasonCodes)}</dd>
+              <dt>需要补充的数据</dt>
+              <dd>{dataQualityReport.missingFields.length > 0 ? dataQualityReport.missingFields.join("、") : "暂无关键缺失字段"}</dd>
+            </dl>
+          </div>
+        </div>
+        <aside className="panel method-panel">
+          <div className="section-title">
+            <Target aria-hidden="true" />
+            <h2>同行基准</h2>
+          </div>
+          <div className="benchmark-list compact-benchmark-list">
+            <p><strong>当前</strong>{responseRateBenchmark.currentLabel}</p>
+            <p><strong>同行平均</strong>{responseRateBenchmark.averageLabel}</p>
+            <p><strong>同行优秀</strong>{responseRateBenchmark.excellentLabel}</p>
+          </div>
+        </aside>
       </section>
 
       <section className="v5-grid">
@@ -355,4 +404,26 @@ function layerLabel(layer: "official" | "business" | "capability"): string {
   if (layer === "official") return "官方目标";
   if (layer === "business") return "经营目标";
   return "能力目标";
+}
+
+function formatDiagnosisConfidence(confidence: DiagnosisMeta["confidence"]): string {
+  if (confidence === "high") return "高";
+  if (confidence === "medium") return "中";
+  if (confidence === "low") return "低";
+  return "数据不足";
+}
+
+function formatReasonCodes(codes: DiagnosisMeta["reasonCodes"]): string {
+  if (codes.length === 0) return "暂无";
+  const labels: Record<DiagnosisMeta["reasonCodes"][number], string> = {
+    complete_required_metrics: "关键字段完整",
+    missing_required_metrics: "关键字段缺失",
+    manual_input: "存在手动录入",
+    demo_data: "仍是示例数据",
+    small_sample: "样本偏小",
+    fallback_used: "使用旧值兜底",
+    conflicting_signals: "信号冲突",
+    rule_not_active: "规则未采用"
+  };
+  return codes.map((code) => labels[code]).join("、");
 }

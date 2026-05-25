@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { PageHeader } from "../components/layout/PageHeader";
 import { Card } from "../components/ui/Card";
+import { StatusBadge } from "../components/ui/StatusBadge";
+import type { DataQualityReport } from "../lib/dataQuality";
 import { type V2MetricId, type V4DailyFactInput, type buildV4DailyOperatingReview } from "../lib/operations";
 import type { SycmCoreBoardImport } from "../lib/sycmImport";
 
@@ -40,11 +42,14 @@ type DataPageProps = {
   values: Record<V2MetricId, number>;
   dailyFields: DailyField[];
   dailyFacts: V4DailyFactInput;
+  dataQualityReport: DataQualityReport;
   sycmImportStatus: SycmImportStatus | null;
   v4Review: ReturnType<typeof buildV4DailyOperatingReview>;
   onUpdateMetric: (metric: EditableMetric, rawValue: string) => void;
   onUpdateDailyFact: (field: DailyField, rawValue: string) => void;
   onImportSycmCoreBoard: (file: File) => void;
+  onOpenCommand: () => void;
+  onOpenAnalysis: () => void;
 };
 
 export function DataPage({
@@ -52,25 +57,33 @@ export function DataPage({
   values,
   dailyFields,
   dailyFacts,
+  dataQualityReport,
   sycmImportStatus,
   v4Review,
   onUpdateMetric,
   onUpdateDailyFact,
-  onImportSycmCoreBoard
+  onImportSycmCoreBoard,
+  onOpenCommand,
+  onOpenAnalysis
 }: DataPageProps) {
+  const hasImportedData = Boolean(sycmImportStatus?.result);
+
   return (
     <>
       <PageHeader title="录入今天的数据" description="先导入，再补录，最后让系统生成今日任务。" />
-      <section className="step-grid" aria-label="数据录入步骤">
-        <Card title="1. 导入数据" tone="action">
-          <p>先上传生意参谋 xls，减少手填成本。</p>
-        </Card>
-        <Card title="2. 补充缺失字段" tone="warning">
-          <p>补齐询盘、毛利率等平台表格没有覆盖的经营事实。</p>
-        </Card>
-        <Card title="3. 查看系统诊断" tone="success">
-          <p>保存后回到今日任务，看系统重新生成的卡点和动作。</p>
-        </Card>
+      <section className="data-quality-banner" aria-label="数据可信度">
+        <div>
+          <span>数据源状态</span>
+          <strong>{dataQualityReport.label}</strong>
+          <p>
+            {hasImportedData
+              ? `已识别 ${dataQualityReport.importedFields.length} 个字段，缺失 ${dataQualityReport.missingFields.length} 个字段。`
+              : "先导入生意参谋核心看板，再补充平台没有导出的询盘和毛利字段。"}
+          </p>
+        </div>
+        <StatusBadge tone={dataQualityReport.canGenerateMission ? "success" : "danger"}>
+          {dataQualityReport.canGenerateMission ? "可生成诊断" : "先补齐关键字段"}
+        </StatusBadge>
       </section>
 
       <section className="page-grid entry-grid">
@@ -156,7 +169,7 @@ export function DataPage({
               <PackageCheck aria-hidden="true" />
               <div>
                 <strong>商品列表导入</strong>
-                <p>先接 Excel / 复制表格，截图 OCR 放到下一轮。</p>
+                <p>下一版本接 Excel / 复制表格；截图 OCR 不在当前版本。</p>
               </div>
             </div>
             <div className="import-field-grid">
@@ -194,7 +207,17 @@ export function DataPage({
                 <dd>{formatMoney(sycmImportStatus.result.fact.paymentAmount)}</dd>
                 <dt>保留手填字段</dt>
                 <dd>{formatMissingImportFields(sycmImportStatus.result.missingFields)}</dd>
+                <dt>数据可信度</dt>
+                <dd>{dataQualityReport.label}</dd>
               </dl>
+              <div className="import-actions">
+                <button className="primary-action" type="button" onClick={onOpenCommand}>
+                  返回今日任务
+                </button>
+                <button className="secondary-action" type="button" onClick={onOpenAnalysis}>
+                  查看卡点诊断
+                </button>
+              </div>
             </div>
           ) : sycmImportStatus?.error ? (
             <div className="import-result error">
@@ -220,7 +243,9 @@ export function DataPage({
         </aside>
       </section>
 
-      <section className="page-grid daily-grid">
+      <details className="soft-details daily-facts-details">
+        <summary>每日经营事实表</summary>
+        <section className="page-grid daily-grid">
         <div className="panel task-panel">
           <div className="section-title">
             <BarChart3 aria-hidden="true" />
@@ -312,7 +337,8 @@ export function DataPage({
             <p><strong>补单买家数</strong>{dailyFacts.replenishmentBuyerCount} 人</p>
           </div>
         </aside>
-      </section>
+        </section>
+      </details>
     </>
   );
 }

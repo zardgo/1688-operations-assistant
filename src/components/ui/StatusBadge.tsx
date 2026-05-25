@@ -1,7 +1,8 @@
+import type { ReactNode } from "react";
 import type { CardTone } from "./Card";
 
 type StatusBadgeProps = {
-  children: string;
+  children: ReactNode;
   tone?: CardTone;
 };
 

@@ -1,5 +1,6 @@
 import type { V2GoalId, V2MetricId, V4DailyFactInput } from "./operations";
 import type { MetricReading } from "../domain/core";
+import type { DataSourceType } from "./dataQuality";
 
 export const APP_STORAGE_KEY = "1688-operations-assistant:v6";
 export const APP_STORAGE_SCHEMA_VERSION = 2;
@@ -7,6 +8,7 @@ export const APP_STORAGE_SCHEMA_VERSION = 2;
 export type StorageAdapter = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 export type StoredPage = "command" | "data" | "analysis" | "product" | "review" | "rules";
+export type WorkspaceMode = "employee" | "manager";
 
 export type MissionStatus = "pending" | "completed" | "skipped" | "expired" | "verified" | "inconclusive";
 
@@ -34,6 +36,13 @@ export type MissionInstance = {
     diagnosisId?: string;
     templateId?: string;
   };
+  actions: Array<{
+    actionId: string;
+    title: string;
+    targetMetricId: V2MetricId;
+    owner: "运营员工" | "客服员工" | "负责人";
+    dueTime: string;
+  }>;
   backtestPlan: BacktestPlan;
 };
 
@@ -45,6 +54,11 @@ export type ExecutionLog = {
   operatorName?: string;
   note?: string;
   abnormalReason?: string;
+  evidenceText?: string;
+  evidenceUrls?: string[];
+  quality?: "unknown" | "acceptable" | "poor" | "excellent";
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type BacktestResult = {
@@ -76,6 +90,12 @@ export type AppStorage = {
   schemaVersion: typeof APP_STORAGE_SCHEMA_VERSION;
   currentGoalId: V2GoalId;
   currentPage: StoredPage;
+  workspaceMode: WorkspaceMode;
+  dataSourceType: DataSourceType;
+  lastUpdatedAt: string | null;
+  importedFields: string[];
+  fallbackFields: string[];
+  missingFields: string[];
   dailyFacts: V4DailyFactInput[];
   metricReadings: MetricReading[];
   missionInstances: MissionInstance[];
@@ -107,6 +127,12 @@ export function createDemoStorage(overrides: Partial<AppStorage> = {}): AppStora
     schemaVersion: APP_STORAGE_SCHEMA_VERSION,
     currentGoalId: "factory_bronze",
     currentPage: "command",
+    workspaceMode: "manager",
+    dataSourceType: "demo",
+    lastUpdatedAt: null,
+    importedFields: [],
+    fallbackFields: [],
+    missingFields: [],
     dailyFacts: [
       {
         date: "2026-04-11",
@@ -250,13 +276,30 @@ export function validateAppStorage(candidate: unknown): StorageValidationResult 
 }
 
 function migrateAppStorage(candidate: AppStorage | (Partial<AppStorage> & { schemaVersion?: number })): AppStorage {
-  if (candidate.schemaVersion === APP_STORAGE_SCHEMA_VERSION) return candidate as AppStorage;
+  if (candidate.schemaVersion === APP_STORAGE_SCHEMA_VERSION) {
+    return {
+      ...(candidate as AppStorage),
+      workspaceMode: candidate.workspaceMode ?? "manager",
+      dataSourceType: candidate.dataSourceType ?? "demo",
+      lastUpdatedAt: candidate.lastUpdatedAt ?? null,
+      importedFields: Array.isArray(candidate.importedFields) ? candidate.importedFields : [],
+      fallbackFields: Array.isArray(candidate.fallbackFields) ? candidate.fallbackFields : [],
+      missingFields: Array.isArray(candidate.missingFields) ? candidate.missingFields : [],
+      metricReadings: Array.isArray(candidate.metricReadings) ? candidate.metricReadings : []
+    };
+  }
 
   if (candidate.schemaVersion === 1) {
     const legacy = candidate as Partial<AppStorage>;
     return {
       ...legacy,
       schemaVersion: APP_STORAGE_SCHEMA_VERSION,
+      workspaceMode: legacy.workspaceMode ?? "manager",
+      dataSourceType: legacy.dataSourceType ?? "demo",
+      lastUpdatedAt: legacy.lastUpdatedAt ?? null,
+      importedFields: Array.isArray(legacy.importedFields) ? legacy.importedFields : [],
+      fallbackFields: Array.isArray(legacy.fallbackFields) ? legacy.fallbackFields : [],
+      missingFields: Array.isArray(legacy.missingFields) ? legacy.missingFields : [],
       metricReadings: Array.isArray(legacy.metricReadings) ? legacy.metricReadings : []
     } as AppStorage;
   }

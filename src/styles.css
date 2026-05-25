@@ -1974,6 +1974,177 @@ body {
   border: 1px solid rgba(21, 128, 61, 0.18);
 }
 
+.status-badge.tone-warning {
+  color: var(--warning);
+  background: #fffbeb;
+  border: 1px solid rgba(183, 121, 31, 0.2);
+}
+
+.status-badge.tone-action,
+.status-badge.tone-neutral {
+  color: var(--action);
+  background: #eff6ff;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+}
+
+.workspace-mode-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--panel-subtle);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.workspace-mode-switch button {
+  min-height: 34px;
+  padding: 0 14px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+}
+
+.workspace-mode-switch button.active {
+  color: #ffffff;
+  background: var(--action);
+}
+
+.data-quality-banner {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-lg);
+  padding: 18px 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 5px solid var(--action);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.data-quality-banner div {
+  display: grid;
+  gap: 6px;
+}
+
+.data-quality-banner span,
+.data-quality-banner p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.data-quality-banner strong {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.import-actions,
+.diagnosis-badge-row,
+.mission-action-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.secondary-action {
+  min-height: 44px;
+  padding: 0 18px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.primary-action:disabled,
+.secondary-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.execution-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.execution-fields label {
+  display: grid;
+  gap: 6px;
+}
+
+.execution-fields span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.execution-fields textarea {
+  width: 100%;
+  min-height: 76px;
+  padding: 10px 12px;
+  resize: vertical;
+  border-radius: 12px;
+}
+
+.empty-state-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  background: var(--panel-soft);
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+}
+
+.diagnosis-grid {
+  margin-top: var(--space-lg);
+}
+
+.diagnosis-explain-card,
+.compact-benchmark-list {
+  display: grid;
+  gap: 12px;
+}
+
+.diagnosis-explain-card dl {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 8px 12px;
+  margin: 0;
+}
+
+.diagnosis-explain-card dt {
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.diagnosis-explain-card dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.compact-benchmark-list p {
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.rule-warning {
+  color: var(--danger);
+  font-weight: 900;
+}
+
+.daily-facts-details {
+  margin-top: var(--space-lg);
+}
+
 .panel {
   padding: var(--space-lg);
 }
@@ -3208,5 +3379,14 @@ body {
 @media (max-width: 1080px) {
   .app-frame {
     background: var(--bg);
+  }
+
+  .execution-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .data-quality-banner {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
